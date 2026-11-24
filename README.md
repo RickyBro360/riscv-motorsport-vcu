@@ -17,7 +17,7 @@ Final-year major project · B.E. Electronics and Communication Engineering · BM
 
 <sub>The chassis, rendered from the same outlines as the cut templates in <code>MECHANICAL/</code>. Red = the four active-aero flaps.</sub>
 
-<img src="MEDIA/images/full.jpeg" alt="Completed Model with Electronics" width="820">
+<img src="MEDIA/full.jpeg" alt="Completed Model with Electronics" width="820">
 
 </div>
 
