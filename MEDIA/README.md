@@ -8,7 +8,5 @@
 
 ## Video
 
-Don't commit video files. Upload to YouTube (unlisted is fine) or Google Drive and list the links here:
+![Alt text](./vcu video.mp4)
 
-- Final demo: *(link)*
-- Asymmetric flaps + DRS close-up: *(link)*
