@@ -143,7 +143,7 @@ Tests in the repo: 63 hardware/firmware-logic tests, 77 backend tests, analysis 
 | | |
 |---|---|
 | Parikshit Srivats Bharadwaj | [@Rickybro201](https://github.com/Rickybro201) |
-| Dhyan Raju Poojary | |
+| Dhyan Raju Poojary | [@kfcnode](https://github.com/kfcnode) |
 | Gauranga Datta | |
 | Dhanushya Shetty | |
 
