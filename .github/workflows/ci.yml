@@ -36,9 +36,10 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: |
-          pip install pytest
-          for f in SOFTWARE/backend/requirements.txt SOFTWARE/analysis/requirements.txt HARDWARE/tests/requirements.txt; do
-            [ -f "$f" ] && pip install -r "$f" || true
+          python -m pip install --upgrade pip
+          pip install pytest pillow
+          for f in SOFTWARE/backend/requirements-dev.txt SOFTWARE/backend/requirements.txt SOFTWARE/analysis/requirements.txt HARDWARE/tests/requirements.txt; do
+            if [ -f "$f" ]; then echo "== $f"; pip install -r "$f"; fi
           done
       - name: Hardware / firmware-logic tests (g++ builds vcu_logic.h for the host)
         run: python -m pytest -q HARDWARE/tests
