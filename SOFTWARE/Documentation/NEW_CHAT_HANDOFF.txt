@@ -1,0 +1,378 @@
+# PROJECT HANDOFF — paste this at the start of a new chat   (updated: FW 2.3.4, 2026-11-15)
+
+I'm continuing my final-year major project (ECE, BMS College of Engineering,
+Bengaluru). This document is the full context. Read it before answering, and
+treat it as authoritative over any assumption you'd otherwise make.
+I prefer honest, direct assessments over reassurance. If something I'm planning
+is a bad idea, say so plainly and tell me why.
+
+===============================================================================
+## 1. The project
+===============================================================================
+
+Title: "AI-Enabled RISC-V Based Motorsport Electronics Platform with Active
+Aerodynamics, Telemetry, and Digital Twin for a 1:10 Scale Formula-Style RC Car"
+
+### Architecture — LOCKED, do not propose changes to it
+
+  Racing Engineer Station (laptop)
+      FastAPI backend + SQLite, rule-based AI engineer + digital twin,
+      Next.js dashboard. Ground radio: classic ESP32 + Ra-02 SX1278 on USB
+           |
+        LoRa 433 MHz (MODE B)  or  Wi-Fi (MODE A)
+           |
+  Raspberry Pi 4B — gateway only. Bridges CAN <-> ground, logs to CSV.
+      Computes nothing that controls the car.
+           |
+        CAN 500 kbit/s
+           |
+  ESP32-C6 VCU — reads every sensor, drives every actuator.
+      SOLE ACTUATOR AUTHORITY. Validates every input from the Pi/laptop.
+
+The AI only ever RECOMMENDS or PROPOSES. The VCU validates confidence, age and
+range, and decides. Never propose giving the Pi or the laptop direct actuator
+control. The dashboard's Start run / Run motor / E-STOP / mode / calibration buttons are
+REQUESTS that the VCU accepts or refuses (CONFIG_ACK) — same rule.
+
+===============================================================================
+## 2. Two hardware builds, ONE firmware
+===============================================================================
+
+The project ships as two folders that differ only in one line of
+HARDWARE/esp32/main_updated_corrected__1_/vcu_hw_profile.h (plus PCB files and
+rehearsal-tool defaults):
+
+  F1_VCU_FW2.3.3_Prototype_hobby_sensors #define VCU_HW_PROFILE VCU_HW_PROFILE_PROTOTYPE  (FW 2.3.3)
+  F1_VCU_FW2.2_PCB_revB                  #define VCU_HW_PROFILE VCU_HW_PROFILE_PCB_REV_B   (FW 2.2.0; copy
+                                         the 4 FW 2.3.0 sketch files in, then set this line;
+                                         FW 2.3.0 compiles clean for rev B on the C6)
+
+### Common to both
+  VCU          SmartElex ESP32-C6-Mini-1-N4 Pico (RISC-V)
+  IMU          MPU6050 (GY-521), I2C 0x68
+  Power        INA260, I2C 0x40, in the +12 V line, off-board
+  Temperature  2x DS18B20 on one 1-Wire bus
+  Servos       2x MG996R with pot feedback on the REAR flaps (RL, RR)
+               2x SG90, open loop, FRONT flaps (FL, FR); steering = 180-deg MG996R, open loop
+               (the original MG995 was a 360-deg continuous servo — replaced 2026-11-13)
+  Encoder      KY-040 on GPIO22/23 (classic stand-in: GPIO34/35), counted by the PCNT peripheral.
+               FW 2.3: the knob IS THE STEERING WHEEL (3 deg/click, +/-30 deg, clamped, no wind-up)
+  Flaps        FW 2.3.3: follow the steering. Straight = all at NEUTRAL (45 = MAX); turning, the OUTSIDE
+               pair goes toward NEUTRAL+SWING (stays MAX), the INSIDE pair drops toward NEUTRAL-SWING
+               (SWING 45 = FLAT at full lock), in proportion to steering/lock. DRS button overrides
+               (5 s all FLAT, 1 s all MAX). Circuit runs keep the map aero.
+  Radio        2x Ra-02 SX1278 433 MHz; Camera ESP32-CAM (Wi-Fi MJPEG, announces itself)
+  Supply       12 V / 2.2 A adapter (dyno demo only)
+
+### >>> CURRENT STATE OF THE PROTOTYPE — read this first <<<
+  The prototype (hobby-sensor) PCB was received, soldered and WORKS. Then the SmartElex
+  ESP32-C6 Pico was killed by ~1 s of 12 V (2026-11-12). Stop-gap: a classic ESP32 DevKit
+  (30-pin ESP-WROOM-32, CP2102), jumpered into the empty U1 socket. The same sketch builds for
+  either chip: the pin map follows the Arduino IDE board ("ESP32 Dev Module" = classic stand-in,
+  "ESP32C6 Dev Module" = the C6). The car still reports hw profile 0 (prototype).
+  Classic ESP32 is Xtensa, NOT RISC-V: present it as temporary. Replace the C6 when possible.
+  Wiring + recalibration: SOFTWARE/Documentation/VCU_classic_ESP32_stopgap.md
+  Chassis: hand-cut sunboard v1 (Documentation/Project_notes/Chassis_sunboard_v1.md).
+  Tyre diameter still ASSUMED 70 mm.
+  2026-11-13 (user): dashboard, CAN, 4 halls, IMU, DS18B20s, INA260, LoRa and ESP32-CAM all report
+  correctly on the dashboard. FW 2.3.0 written that day for knob steering, flaps-follow-steering,
+  dashboard motor control, fewer stops, servo calibration, dashboard lag. NOT yet run on the car.
+
+### Prototype (hobby modules) — what Stage 2c/2d was built with
+  Wheel speed  4x LM393/A3144 hall modules, one magnet per wheel (falling edge, pull-up)
+  Motor        L298N, ENA+ENB on GPIO17 (classic: GPIO4) at 1 kHz, IN straps forward only, no kill switch
+  CAN          SN65HVD230 module
+  FL flap      GPIO19
+  Wiring       SOFTWARE/Documentation/VCU_final_connections.txt
+
+### PCB rev B (designed in this project, 100 x 80 mm, 2 layers, Gerbers/BOM/CPL ready)
+  Wheel speed  4x TLE4941plusC 2-wire sensors (off-board) -> 75R sense -> LM393 (on board),
+               rising edge, PPR = VCU_REVB_WHEEL_PPR (PLACEHOLDER 1 — count the target wheel)
+  Motor        2x BTN8982TA (IN <- GPIO17 at 20 kHz, off-time BRAKES) behind a BTS7004
+               kill switch on GPIO19 (MOTOR_EN, R7 10k pull-down)
+               Fallback: VCU_REVB_L298N_FALLBACK 1 drives an L298N from J5
+  5 V          TLS4125 buck for logic (JP1 feeds VSYS); servos from an external >=5 A buck
+  CAN          SN65HVD267 (RXD via 1k/2k divider), split termination on JP2
+  FL flap      GPIO16 (moved off GPIO19 for the kill switch; may twitch at boot — harmless)
+  Wiring       SOFTWARE/Documentation/PCB_revB_connections.md
+  Open WARNs   TLS4125 pin 14 (FB) in the V50 table; 0.8 mm V12M track to the right
+               half-bridge; servo bus width at full 3-servo stall (2 oz copper if possible)
+  Samples not used: TLE4964 (plan-B wheel sensor), TLS850 (not needed)
+
+===============================================================================
+## 3. Status — be precise about what is TESTED
+===============================================================================
+
+### Stage 2c — TESTED ON HARDWARE (prototype), working
+  VCU -> CAN -> Pi -> LoRa -> ground ESP32 -> bridge.py -> FastAPI -> dashboard.
+  4 halls, MG996R with feedback (then on LF/RF), MPU6050, DS18B20s.
+  Not tested in 2c: L298N, steering servo, SG90s.
+
+### Stage 2d (FW 2.1.x) — dyno track runs on 24 circuits, AI engineer with approval,
+  circuit-map dashboard, camera recording. Software-tested only.
+
+### FW 2.3.4 (2026-11-15) — CURRENT. Details: ChangeLog_FW2.3.md top section.
+  - 2.3.3 CONFIRMED ON THE CAR by the user (flaps, DRS, steering, calibration, centre steering all correct).
+  - Wheel speed ESTIMATED from duty (VCU_CAL_SPEED_FROM_DUTY 1; 1000 rpm, 90 mm wheel, 0 below 20 %), RO key
+    106, labelled as an estimate on the dashboard (no fake noise). Stall watchdog off in this mode.
+  - Knob PRESS = DRS: KY-040 SW -> J13 pin 3 (FL hall input, GPIO14); FL hall module unplugged.
+  - Demo corner sequence run by the VCU: key 26, run state 5, console `demo`, dashboard button.
+  - Digital twin rebuilt from the chassis model geometry; charts auto-extend their Y axis.
+  - Flap calibration on the car (saved): RL flat 1700/max 1000, RR flat 1500/max 1000, one front reversed.
+    vcu_calibration.h still has the old template pulses: paste the `cal` output into it.
+### FW 2.3.3 (2026-11-13 evening). Asymmetric aero + DRS.
+  - Flap law default NEUTRAL 45 / SWING 45 (swing max 90): straight = all four MAX; turning, the
+    INSIDE pair (front+rear) drops toward FLAT, outside stays MAX. Knob left -> left flaps flat.
+  - DRS = CONFIG key 25 (drsCmd): 1 = all FLAT 5 s, all MAX 1 s, then the law; 0 = cancel; reported
+    value = phase. Dashboard button (Car control), POST /api/vehicle/drs, console `drs`/`drs off`.
+  - Boot rule: saved servo PULSES always win (no jump on re-flash); law/knob fields follow the file
+    when edited (NVS key "trimlaw"). `cal flap <x> swap` for a mirror-mounted flap.
+  - Hardware now: Waveshare ESP32-C6-Pico (board "ESP32C6 Dev Module", USB CDC On Boot Enabled),
+    steering = 180 deg MG996R (VCU_CAL_STEER_SERVO_ENABLED 1). User reported all flaps moving
+    together (symmetric) on 2.3.2 -> mirrored calibration; check each flap at centre = MAX.
+  - USB SAFETY: a laptop died from back-feed. USB to the car only with the 12 V adapter unplugged,
+    or J17 removed, or through a USB isolator.
+### FW 2.3.2 (2026-11-13 10:30). Bench findings:
+  - The STEERING servo is a CONTINUOUS-ROTATION (360 deg) MG995 (1410-1590 us = stop, outside =
+    spin, speed ~ offset). It cannot hold an angle: FIT A 180 deg POSITIONAL SERVO. Until then
+    VCU_CAL_STEER_SERVO_ENABLED 0 (vcu_calibration.h, default 0) sends it no pulses.
+  - `pulse` jog used to hold all servos until `bench off` (knob looked dead; jog values are never
+    stored). 2.3.2: a knob turn or 60 s idle releases it.
+  - One FRONT SG90 is mirror-mounted (fronts moved together): calibrate it with FLAT > MAX.
+  - User has re-horned the servos so the default positions are neutral. Not yet flashed 2.3.1/2.3.2.
+### FW 2.3.1 (2026-11-13 03:30). On the car 2.3.0 sat in FAULT: faults 0x0007/0x0006 =
+  WATCHDOG (sensor task silent > 1 s, flapping) + SENSOR_TIMEOUT + CAN_TIMEOUT (Pi not running, TEC=128).
+  Knob + flap law confirmed working on the car. 2.3.1: software watchdog -> WARNING; `diag` command,
+  [WDOG] and [STATE] lines. OPEN: send `diag` output to find the sensor-task stall source.
+
+### FW 2.3.0 (2.3.0-stage2e). Compiled + software-tested.
+  Built from the FW 2.2.4 zip the user uploaded (the 2.2.5-2.2.10 changes were NOT in it); the
+  2.2.5/2.2.7/2.2.8/2.2.9/2.2.10 fixes were re-implemented from their descriptions (see below).
+  Full detail + re-test list: SOFTWARE/Documentation/ChangeLog_FW2.3.md
+  - Knob = steering wheel (PCNT on both chips, 2 counts/click). Steering source: circuit map in a
+    run; a driver holding ARM in drive_client.py while armed; otherwise THE KNOB.
+  - Flaps follow the steering (law above). AI recs blended only in circuit runs; never in FAULT.
+  - Motor from the dashboard: CONFIG key 9 (duty permille, 0 = stop), ANY drive mode, needs IDLE +
+    no FAULT + ground link (deadman). Live duty change. Console `motor <pct>` (120 s timeout).
+  - Fewer stops: watchdog/undervolt/overcurrent CRITICAL->FAULT (motor off, auto-clears, no latched
+    e-stop); sensor timeouts, implausible readings, self-test failures, servo mismatch -> WARNING.
+    Steering + flaps keep working in FAULT. Only E-STOP latches.
+  - Servo calibration: NEW FILE vcu_calibration.h (steer L/C/R us, each flap FLAT/MAX us, flap
+    neutral/swing, lock, knob deg/click, reverse) + live keys 30-45 (dashboard Vehicle Setup ->
+    Servo calibration, console `cal ...`), key 24 save/revert. A pulse write moves that servo there
+    for 2.5 s; rear MG996R pot ends auto-captured. NVS save wins unless the file was edited since
+    (fingerprint).
+  - 2.2.x fixes folded in: loopWait() resync (2.2.5), PCNT knob (2.2.8), ageMs() clamp (2.2.9),
+    classic I2C 100 kHz (2.2.10); NEW: I2C bus restart after 0.5 s of IMU failures, I2C + 1-Wire
+    mutexes (e-stop-reset self-test ran concurrently with the sensor task).
+  - Dashboard lag: backend SQLite writes off the event loop (to_thread), WAL + synchronous=NORMAL,
+    concurrent WS broadcast, latest frame cached in memory, dashboard redraws coalesced <= 10 Hz,
+    LoRa config queue de-duplicated (motor STOP jumps the queue).
+  Tests: hardware 63 (incl. test_fw23_chain.py: Mode A + LoRa end-to-end with the real
+  vcu_logic.h), backend 73, analysis 25; dashboard tsc/eslint(0 errors)/next build clean.
+  Compile (arduino-cli, esp32 core 3.3.2, 0 warnings): classic 465 KB, C6 proto 463 KB, C6 rev B 463 KB.
+
+### FW 2.2.5-2.2.10 (made in another session, on the car; NOT in the 2.2.4 zip)
+  2.2.10 real sensor-task stalls seen (IMU/INA260 I2C failing): I2C 100 kHz on classic + per-section timing.
+  2.2.9 ages clamped (no false WATCHDOG/SENSOR_TIMEOUT E-STOP from a wrapped now - t); [WDOG] + status ages.
+  2.2.8 classic ESP32: knob counted by the PCNT hardware pulse counter (polling missed clicks).
+  2.2.7 KY-040 = 2 quarter-steps per click (measured); raw knob levels at boot and in `knob`.
+  2.2.6 KY-040 knob = steering wheel (VCU_KNOB_FUNCTION = KNOB_STEER).
+  2.2.5 FIX task-watchdog reboot loop: control loop no longer "catches up" after the self-test.
+        Verified on the car: no reboot.
+  2.2.3 boot diagnostics (reset reason, [BOOT] steps, servos started 150 ms apart)
+  2.2.4 classic ESP32: 2x task stacks
+  The [WDOG] per-section timing line of 2.2.10 is NOT in 2.3.0.
+
+### FW 2.2.2 = 2.2.1 + prototype CAN TX/RX swapped in firmware
+  The SN65HVD230 module's header (VCC,GND,CRX,CTX) plugs into J1 (drawn 3V3,GND,TX,RX) crossed.
+  VCU_PROTO_CAN_SWAPPED 1: C6 TX=15/RX=5, classic TX=16/RX=17. Rev B unchanged (5/15).
+  CAN on the classic stand-in verified with the Pi (can1).
+
+### FW 2.2.1 = FW 2.2 + the classic ESP32 stand-in pin map. Tasks pinned to ARDUINO_RUNNING_CORE.
+
+### FW 2.2 (2.2.0-stage2e)
+  - Drive modes (key 5): DYNO = car on the rollers (circuit runs, dyno cal); TRACK = on the floor.
+    Boots TRACK. Changes only in IDLE. FW 2.3: the dashboard MOTOR (key 9) works in both modes.
+  - Dashboard run control: key 6 (0 stop, 1 circuit run, 2 dyno cal), key 7 laps.
+    Start needs DYNO + IDLE + no fault + ground link. Remote runs use the ground link as
+    the deadman (heartbeat > 1 s old or lora_ok false -> stop, COMM_LOSS 3 s).
+  - Dashboard e-stop: key 8 (1 trigger, 2 reset -> self-test). Top-bar E-STOP on every page.
+  - Traction control in TRACK (key 22); stall watchdog; kill switch logic (rev B).
+  - CAN 0x148 VCU_MODE (100 ms): mode, hw profile, flags, laps, TC cut %, knob (FW 2.3: knob position).
+  - Backend: /api/vehicle/status|mode|run|estop (FW 2.3 + motor, steering/center, calibration).
+  - Virtual car: HARDWARE/tests/virtual_car.py compiles the real vcu_logic.h for the
+    laptop and runs it behind the real Pi gateway on a virtual CAN bus (`SET knob <n>` turns the knob).
+
+### Hardware re-test needed: ChangeLog_FW2.3.md §7 first, then ChangeLog_FW2.2.md §8 (per build).
+
+===============================================================================
+## 4. Pin map — AUTHORITATIVE (vcu_hw_profile.h)
+===============================================================================
+ESP32-C6 map below (rev B CAN as listed; PROTOTYPE CAN is SWAPPED in FW 2.2.2+: TX=15, RX=5).
+CLASSIC ESP32 STAND-IN (prototype only, FW 2.2.1+):
+  steer 18 · FL 19 · FR 23 · RL 27 · RR 14 · fb RL 36 (VP) · fb RR 39 (VN) · motor 4 ·
+  CAN TX 16 / RX 17 (FW 2.2.2) · SDA 21 / SCL 22 · 1-Wire 13 · halls FL 25 FR 26 RL 32 RR 33 ·
+  KY-040 CLK 34 / DT 35. Avoid 0/2/5/12/15 (straps), 1/3 (console), 6-11 (flash); 34-39 input-only.
+
+GPIO  Function                    Notes
+----  -------------------------   --------------------------------------------
+ 0    RL_FB  rear-left flap fb    ADC, 10k/10k + 100 nF
+ 1    RR_FB  rear-right flap fb   ADC, 10k/10k + 100 nF
+ 2    Wheel FR
+ 3    Wheel RL                    NOT GPIO8 (strap)
+ 4    Wheel RR
+ 5    CAN_TX
+ 6    I2C SDA                     MPU6050 + INA260
+ 7    I2C SCL
+ 8    Servo RR (flap)             NEEDS 10k PULL-UP to 3V3 (strapping pin)
+ 9    1-Wire  DS18B20 x2          4.7k pull-up (also holds BOOT high)
+14    Wheel FL
+15    CAN_RX
+16    prototype: spare            rev B: Servo FL (U0TXD — boot text, flap may twitch)
+17    MOTOR_PWM                   NEEDS 4.7k PULL-DOWN. L298N ENA+ENB (proto) / BTN8982 IN (rev B)
+18    Servo steering
+19    prototype: Servo FL         rev B: MOTOR_EN -> BTS7004 (10k pull-down)
+20    Servo FR (flap)
+21    Servo RL (flap)
+22    KY-040 CLK                  also the on-board TCA9554's SDA: never start I2C here
+23    KY-040 DT                   also the on-board TCA9554's SCL
+EN (37), VBUS (40), RUN (30): not connected. GPIO10-13 do not exist / are USB.
+All 20 usable GPIOs are used on rev B.
+
+===============================================================================
+## 5. Firmware build and assumptions
+===============================================================================
+
+  VCU_TRANSPORT_TWAI 1 · VCU_SENSORS_REAL 1 · VCU_HAVE_ADS1115 0 · VCU_HAVE_INA260 1
+  VCU_FB_WIRED_MASK 0x18 · VCU_MOTOR_FORWARD_ONLY 1 · profile from vcu_hw_profile.h
+Sketch files (4): main_updated_corrected__1_.ino, vcu_logic.h, vcu_hw_profile.h,
+  vcu_calibration.h (FW 2.3: servo end points etc. — the file to edit), + track_maps.h (generated).
+Arduino IDE: "ESP32C6 Dev Module", USB CDC On Boot ENABLED. Core 3.3.x.
+  Classic ESP32 stand-in: "ESP32 Dev Module" (console on the DevKit's USB/UART0).
+Firmware 2.3.3-stage2e. CAN protocol version still 2 (keys 9, 23, 24, 25, 30-45 additive). LoRa v3
+unchanged in size. Pi main.py, bridge.py, backend and dashboard MUST be updated together.
+
+Steering sign convention (FW 2.3, resolved): internal + = LEFT (map, IMU lat g, yaw, CAN 0x115);
+the driver packet 0x118 stays + = RIGHT and the VCU negates it. The servo's physical direction is
+set by the LEFT/RIGHT pulses in vcu_calibration.h; knob direction by VCU_CAL_KNOB_REVERSE.
+
+ASSUMPTIONS still to replace with measurements:
+  - Tyre diameter ASSUMED 70 mm (vcu_logic.h CFG_WHEEL_DIAMETER_M, Pi WHEEL_DIAMETER_M,
+    bridge.py).
+  - Rev B wheel PPR placeholder 1.
+  - TC default slip 25 % (coarse with one magnet per wheel).
+  - Servo pulses in vcu_calibration.h are generic defaults until calibrated on the car.
+  - Flap angles, circuit speeds, downforce, drag are MODELLED.
+
+Console (VCU, 115200):
+  status  diag [reset]  i2cscan  ds  tempmap  knob [zero]  motor <pct>|stop
+  cal | cal steer left|center|right <us> | cal flap fl|fr|rl|rr flat|max <us> |
+  cal flap fl|fr|rl|rr swap | drs | drs off   (FW 2.3.3)
+  cal lock|neutral|swing|click <deg> | cal reverse 0|1 | cal save | cal reset | cal fb <3|4> min|max
+  pulse <id> <us> (raw jog)   servo <id> <deg>   bench off   sweep on [s] / off
+  mode dyno|track   tc <permille>   dyno cal          (DYNO only)
+  track list | track <id>   lap len <m> | lap run [n] | lap stop   trackrun on|off
+  tune   set <key> <value>   aero ...   estop | reset
+
+===============================================================================
+## 6. BUGS ALREADY FOUND AND FIXED — DO NOT RE-INTRODUCE
+===============================================================================
+
+1. GPIO10/11 DO NOT EXIST on the ESP32-C6-MINI-1 module.
+2. GPIO22/23 are the on-board TCA9554 expander's I2C. Never start I2C there; FW 2.2+ only
+   READS them as plain inputs for the KY-040 (every device on them only pulls low).
+3. GPIO8 and GPIO9 are strapping pins and must be HIGH at reset (Hall RL moved to GPIO3,
+   GPIO8 drives a servo with a 10k pull-up).
+4. The backend ECHOES telemetry frames back. The Pi and bridge.py drain their WebSocket
+   in a background task; the backend bounds each send to 0.5 s.
+5. The 1-Wire bit-bang must NOT call pinMode() inside the timing slots: the pin is set
+   OUTPUT_OPEN_DRAIN once.
+6. LoRaRF's begin() never reads the chip. The Pi checks RegVersion (0x12).
+7. The ground modem's status lines must be SLIP END-delimited.
+8. The dashboard derives the backend URL from its own page host; CORS accepts private LAN.
+9. The stall watchdog is PULSE-based (no rear pulse for 2.5 s at > 25 % duty).
+10. The Pi forwards CONFIG_REPORTs in its own rotation, changed/ACKed keys first.
+11. The ESP32-CAM serves only ONE client — the backend relay.
+12. The flap stagger uses a `rear_changing_` flag, not a sentinel angle.
+13. The twin's aero map must SATURATE in downforce while drag keeps rising.
+14. (FW 2.2) The backend's latest frame is chosen by row id (not vehicle timestamp) and
+    skips simulator frames — otherwise stale frames showed after a gateway restart.
+    (FW 2.3: the recorder keeps that same row in memory; same rule.)
+15. (FW 2.2) MOTOR_EN must not be on GPIO16 (U0TXD prints at boot): it is on GPIO19 and the
+    FL flap servo took GPIO16 on rev B.
+16. (FW 2.1.2) The Arduino IDE inserts its generated prototypes before the FIRST function in
+    the .ino. No function definition (not even a constexpr helper) may sit above the struct
+    definitions, or the build fails with "'X' does not name a type". Use macros there.
+17. (2026-11-12) ~1 s of accidental 12 V killed the ESP32-C6 board. Before every power-up,
+    meter-check that the 12 V side (adapter, INA260 IN+/IN-, L298N 12 V) touches nothing on
+    VSYS, 3V3 or any MCU pin.
+18. (FW 2.2.1) On the dual-core classic ESP32, noInterrupts() masks only the current core, so all
+    tasks are pinned to ARDUINO_RUNNING_CORE (where the ISRs are attached). Keep it that way.
+19. (FW 2.2.2) Prototype J1 pin order does not match the SN65HVD230 module (VCC,GND,CRX,CTX):
+    plugged straight in, TX/RX are crossed. Fixed in firmware (VCU_PROTO_CAN_SWAPPED 1). Do not
+    run older firmware with the module plugged in. Fix the footprint on the next PCB.
+20. (FW 2.2.5) Never take a vTaskDelayUntil() reference before a long blocking step (self-test):
+    the task then "catches up" without blocking, starves lower priorities, and the task watchdog
+    reboots the MCU. Use loopWait() (xTaskDelayUntil + resync when it returns pdFALSE).
+21. (FW 2.2.8) Do not poll the KY-040 from a low-priority task: it passes its middle state in < 1 ms
+    and the poll misses it (count stays 0). FW 2.3: PCNT on both chips.
+22. (FW 2.2.9) Ages of timestamps written by another task must be clamped (ageMs()): if that task
+    ran after `now` was read, `now - t` wraps and raises a false critical WATCHDOG -> E-STOP.
+23. (FW 2.3) The backend wrote every telemetry frame to SQLite ON the asyncio event loop and
+    broadcast to viewers one after another: the dashboard lagged. Keep DB writes in to_thread,
+    WAL on, and the broadcast concurrent.
+24. (FW 2.3) The e-stop-reset self-test runs in the CONTROL task while the SENSOR task reads the
+    same I2C / 1-Wire buses: every bus access holds g_i2c_mutex (recursive) / g_ow_mutex.
+25. (FW 2.3) A failed self-test item must not park the car in FAULT for ever (FW 2.2 did: the flag
+    never cleared). It is a WARNING now.
+
+===============================================================================
+## 7. Open decisions / TODO
+===============================================================================
+
+0. Run ChangeLog_FW2.3.md §7 on the car: knob direction, steering + flap end points (calibrate,
+   `cal save`, copy the values into vcu_calibration.h), flaps follow steering, dashboard motor +
+   deadman, 5 V rail with all servos swinging (brown-out?).
+1. Replace the ESP32-C6 (project is titled RISC-V). Until then: classic ESP32 stand-in.
+2. Run the FW 2.2 re-test list on the prototype (ChangeLog_FW2.2.md §8).
+3. Rev B: resolve the three WARNs before ordering; count the wheel target and set PPR.
+4. Measure the tyre diameter; consider more magnets per rear wheel (prototype).
+5. Power: 12 V / 2.2 A is enough ONLY for the dyno demo with the duty cap and 2.0 A
+   derating (key 21). Real driving needs a 3S LiPo or a 5-10 A supply.
+6. Circuit list from formula1.com (Sept 2026, 23 rounds) + Jeddah — check before the viva.
+
+===============================================================================
+## 8. Files
+===============================================================================
+
+Two folders (identical software; see section 2):
+  HARDWARE/esp32/main_updated_corrected__1_/   VCU firmware (.ino, vcu_logic.h,
+                                                vcu_hw_profile.h, vcu_calibration.h, track_maps.h)
+  HARDWARE/raspberry_pi/main.py                Pi gateway + setup scripts
+  HARDWARE/Ground Station/                     bridge.py, drive_client.py, ground modem
+  HARDWARE/esp32_cam/                          camera sketch (set BACKEND_HOST)
+  HARDWARE/pcb_prototype/                      prototype PCB Gerbers (GBR-1) + 1:1 fit-check PDF
+  HARDWARE/tests/                              63 tests, virtual_car.py, vcu_host_sim.cpp
+  HARDWARE/pcb_revB/                           (rev B folder only) Gerbers, BOM, CPL, KiCad
+  SOFTWARE/backend/                            FastAPI, AI engineer, twin, camera relay,
+                                                tools/demo_car.py
+  SOFTWARE/dashboard/                          Next.js dashboard (Vehicle Setup: Car control,
+                                                Servo calibration)
+  SOFTWARE/analysis/                           offline log analysis
+  SOFTWARE/Documentation/                      start with README.md:
+      ChangeLog_FW2.3.md       CURRENT: knob steering, flap law, dashboard motor, calibration, faults, lag
+      VCU_classic_ESP32_stopgap.md  CURRENT prototype MCU: jumper map, power, recalibration
+      ChangeLog_FW2.2.2.md / 2.2.1 / 2.2   earlier changes + re-test lists
+      Project_notes/           chassis build notes, rev B requirements check
+      DemoRunGuide_FW2.2.md    DYNO presentation + TRACK driving
+      VCU_final_connections.txt / PCB_revB_connections.md   wiring per build
+
+Network (Wi-Fi SSID `CTRL`) — addresses as of 2026-11-12:
+  Laptop 1 (engineer)  10.49.218.128  backend :8000 (--host 0.0.0.0), dashboard :3000, bridge.py
+  Laptop 2 (car side)  (check)        VCU console, ESP32-CAM monitor, SSH to Pi
+  Raspberry Pi         10.49.218.178
+  ESP32-CAM            10.49.218.243  stream http://10.49.218.243:81/stream
+  Mode B (LoRa) needs no IP on the Pi; Mode A needs --laptop 10.49.218.128.
+  Exact commands: HOW_TO_RUN.md in the project root.
+Run order: backend -> dashboard (Live Mode) -> bridge.py -> Pi gateway -> camera.

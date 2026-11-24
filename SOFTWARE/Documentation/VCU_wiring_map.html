@@ -1,0 +1,614 @@
+<title>F1 VCU Wiring Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: technical wiring sheet. System overview, then the VCU header pinout, then one wiring card per component, then Pi header, mistakes and checklist. Wire colours carry meaning (one colour per net type). */
+:root {
+  --bg:#f3f5f7; --surface:#ffffff; --surface2:#e9edf1; --ink:#14181d; --muted:#5a6470; --line:#d3d9df; --accent:#0b5d7d;
+  --v12:#d0342c; --v5:#df7410; --v33:#a97f00; --gnd:#2b3036; --pwm:#2563d9; --fb:#8b46d6; --dig:#0d8a7c; --ow:#8a5a2b;
+  --i2c:#2f9a3f; --can:#c42f8a; --spi:#0a88ad; --rf:#5b5fd0; --mot:#8f3b12; --usb:#56606b; --ctl:#6f7a86; --nc:#a3abb4;
+  --fixbg:#fde8e6; --fixfg:#a3231b; --warnbg:#fff4de; --warnfg:#7a4a00;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#0f1316; --surface:#171c21; --surface2:#1c2228; --ink:#e7ebef; --muted:#9aa5b1; --line:#2d363e; --accent:#5cc0e6;
+  --v12:#ff6a5f; --v5:#ffa347; --v33:#e6c13a; --gnd:#c7cdd4; --pwm:#6b9bff; --fb:#b98cf2; --dig:#35c7b5; --ow:#c8925a;
+  --i2c:#5fce6c; --can:#f06bb5; --spi:#39c1e3; --rf:#9a9cff; --mot:#e07a45; --usb:#9aa5b1; --ctl:#8d98a4; --nc:#56606a;
+  --fixbg:#3a1a18; --fixfg:#ff9d95; --warnbg:#33280f; --warnfg:#ffd27a; color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#0f1316; --surface:#171c21; --surface2:#1c2228; --ink:#e7ebef; --muted:#9aa5b1; --line:#2d363e; --accent:#5cc0e6;
+  --v12:#ff6a5f; --v5:#ffa347; --v33:#e6c13a; --gnd:#c7cdd4; --pwm:#6b9bff; --fb:#b98cf2; --dig:#35c7b5; --ow:#c8925a;
+  --i2c:#5fce6c; --can:#f06bb5; --spi:#39c1e3; --rf:#9a9cff; --mot:#e07a45; --usb:#9aa5b1; --ctl:#8d98a4; --nc:#56606a;
+  --fixbg:#3a1a18; --fixfg:#ff9d95; --warnbg:#33280f; --warnfg:#ffd27a; color-scheme:dark; }
+
+* { box-sizing:border-box; }
+body { background:var(--bg); color:var(--ink); font-family:var(--body); font-size:15px; line-height:1.5; }
+.wrap { max-width:1240px; margin:0 auto; padding-inline:16px; padding-block:24px 64px; }
+h1,h2,h3 { font-family:var(--display); letter-spacing:.01em; text-wrap:balance; margin:0; line-height:1.1; }
+h1 { font-size:clamp(34px,5vw,52px); font-weight:700; }
+h2 { font-size:28px; font-weight:700; }
+h3 { font-size:21px; font-weight:600; }
+p { margin:0; }
+.eyebrow { font-family:var(--mono); font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+.lede { max-width:70ch; color:var(--muted); margin-top:10px; }
+header.top { display:grid; gap:14px; padding-bottom:18px; border-bottom:2px solid var(--ink); }
+.status { display:flex; flex-wrap:wrap; gap:10px; }
+.note { border-radius:8px; padding:10px 14px; font-size:14px; max-width:100%; }
+.note.fix { background:var(--fixbg); color:var(--fixfg); }
+.note.warn { background:var(--warnbg); color:var(--warnfg); }
+.note b { font-weight:600; }
+
+section { margin-top:44px; display:grid; gap:16px; }
+.sechead { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px 20px; }
+.sechead p { color:var(--muted); max-width:70ch; font-size:14px; }
+
+/* legend */
+.legend { display:flex; flex-wrap:wrap; gap:8px; position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--bg); padding-block:10px; border-bottom:1px solid var(--line); }
+.chip { display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:999px; padding:4px 12px 4px 8px; font:500 13px var(--body); cursor:pointer; }
+.chip i { width:22px; height:4px; border-radius:2px; background:var(--c); display:block; }
+.chip i.dash { background:repeating-linear-gradient(90deg,var(--c) 0 5px,transparent 5px 9px); }
+.chip[aria-pressed="true"] { border-color:var(--c); box-shadow:0 0 0 1px var(--c) inset; }
+.chip:focus-visible, button:focus-visible, .blk:focus-visible, .row input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.legend .hint { font-size:12px; color:var(--muted); align-self:center; margin-left:4px; }
+
+/* diagrams */
+.diagram { overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:10px; }
+.diagram svg { display:block; width:100%; height:auto; }
+#overview svg { min-width:960px; }
+#pinout svg { min-width:900px; }
+#piheader svg { min-width:880px; }
+svg text { font-family:var(--body); fill:var(--ink); }
+.zone { fill:var(--surface2); }
+.zl { font:600 12px var(--mono); letter-spacing:.08em; fill:var(--muted); }
+.blk { cursor:pointer; }
+.blk rect { fill:var(--surface); stroke:var(--line); stroke-width:1.5; }
+.blk:hover rect, .blk:focus rect { stroke:var(--accent); stroke-width:2; }
+.blk .t1 { font:600 15px var(--body); }
+.blk .t2 { font:400 12px var(--body); fill:var(--muted); }
+.blk.core rect { stroke:var(--ink); stroke-width:2; }
+.w { fill:none; stroke-width:3; stroke-linejoin:round; stroke-linecap:round; transition:opacity .15s; }
+.w.dash { stroke-dasharray:7 6; }
+.wl { font:500 11.5px var(--mono); fill:var(--muted); paint-order:stroke; stroke:var(--surface2); stroke-width:4px; stroke-linejoin:round; }
+.dot { transition:opacity .15s; }
+.dim { opacity:.12; }
+.pn { font:500 11px var(--mono); fill:var(--muted); }
+.pl { font:600 12.5px var(--mono); }
+.pd { font:400 12.5px var(--body); }
+.pd.nc { fill:var(--muted); }
+.pinrow { cursor:pointer; }
+.pinrow:hover .pd { text-decoration:underline; }
+.modtitle { font:700 22px var(--display); }
+.modsub { font:400 12px var(--mono); fill:var(--muted); }
+
+/* cards */
+.group { display:grid; gap:14px; }
+section > *, #groups > *, .group > *, .cards > *, .panel > * { min-width:0; }
+.card ul li { min-width:0; }
+.group > h3 { color:var(--muted); font-size:18px; text-transform:uppercase; letter-spacing:.06em; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,540px),1fr)); gap:14px; align-items:start; }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; display:grid; gap:12px; min-width:0; scroll-margin-top:70px; }
+.card:target, .card.flash { box-shadow:0 0 0 2px var(--accent); }
+.card header { display:flex; justify-content:space-between; gap:12px; align-items:start; }
+.card .part { font:400 12.5px var(--mono); color:var(--muted); margin-top:2px; }
+.count { font:500 12px var(--mono); color:var(--muted); white-space:nowrap; padding-top:4px; }
+.count.done { color:var(--i2c); }
+.rows { display:grid; gap:2px; }
+.row { display:grid; grid-template-columns:20px minmax(0,.95fr) minmax(26px,.45fr) minmax(0,1.5fr); align-items:center; gap:10px; padding:6px 4px; border-radius:6px; cursor:pointer; transition:opacity .15s; }
+.row:hover { background:var(--surface2); }
+.row input { margin:0; width:16px; height:16px; accent-color:var(--accent); }
+.row .pin { font:500 13px var(--mono); overflow-wrap:anywhere; }
+.row .wire { height:3px; border-radius:2px; background:var(--c); position:relative; }
+.row .wire::before, .row .wire::after { content:""; position:absolute; top:-3px; width:9px; height:9px; border-radius:50%; background:var(--c); }
+.row .wire::before { left:-4px; } .row .wire::after { right:-4px; }
+.row.nc .wire { background:repeating-linear-gradient(90deg,var(--c) 0 4px,transparent 4px 8px); }
+.row.nc .wire::after { display:none; }
+.row .dest { font-size:14px; overflow-wrap:anywhere; }
+.row .dest small { display:block; color:var(--muted); font-size:12.5px; line-height:1.35; }
+.row input:checked ~ .pin, .row input:checked ~ .dest { opacity:.5; text-decoration:line-through; text-decoration-thickness:1px; }
+.tag { display:inline-block; font:600 10.5px var(--mono); letter-spacing:.05em; padding:1px 6px; border-radius:4px; margin-left:6px; vertical-align:1px; }
+.tag.fix { background:var(--fixbg); color:var(--fixfg); }
+.tag.fw { background:var(--warnbg); color:var(--warnfg); }
+.card ul { margin:0; padding-left:18px; font-size:13.5px; color:var(--muted); display:grid; gap:3px; }
+.card ul b { color:var(--ink); font-weight:600; }
+.plug { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font:500 12.5px var(--mono); }
+.plug span { padding:3px 8px; border-radius:4px; border:1px solid var(--line); }
+.plug .b { border-color:var(--gnd); } .plug .r { border-color:var(--v5); } .plug .o { border-color:var(--pwm); } .plug .f { border-color:var(--fb); }
+.plug em { font-style:normal; color:var(--muted); font-family:var(--body); font-size:12.5px; }
+
+/* lists */
+.twocol { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:14px; align-items:start; }
+.panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:18px; display:grid; gap:12px; min-width:0; }
+.panel ol, .panel ul { margin:0; padding-left:22px; display:grid; gap:8px; font-size:14.5px; }
+.panel li b { font-weight:600; }
+.panel li span { color:var(--muted); }
+.progress { display:flex; flex-wrap:wrap; align-items:center; gap:12px; font:500 13px var(--mono); color:var(--muted); }
+.bar { flex:1 1 200px; height:6px; background:var(--surface2); border-radius:3px; overflow:hidden; min-width:120px; }
+.bar i { display:block; height:100%; width:0; background:var(--i2c); transition:width .2s; }
+button.plain { font:500 13px var(--body); color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:5px 12px; cursor:pointer; }
+button.plain:hover { border-color:var(--accent); }
+code { font-family:var(--mono); font-size:.92em; background:var(--surface2); padding:1px 5px; border-radius:4px; }
+pre.cfg { margin:0; font:400 12.5px/1.6 var(--mono); background:var(--surface2); padding:10px 12px; border-radius:6px; overflow-x:auto; }
+footer { margin-top:48px; color:var(--muted); font-size:13px; border-top:1px solid var(--line); padding-top:14px; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; scroll-behavior:auto !important; } }
+@media (max-width:520px) { .row { grid-template-columns:18px minmax(0,1fr) 22px minmax(0,1.4fr); gap:7px; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">AI-enabled RISC-V motorsport platform · 1:10 car · PCB rev 30 Sep 2026</span>
+    <h1>F1 VCU Wiring Map</h1>
+    <p class="lede">Every wire in the project, from the 12 V adapter to the laptop. Start with the overview. The pinout shows what each VCU header pin goes to. The cards list every connection one component at a time: tick them off as you wire. Click any block or pin to jump to its card, and click a wire colour to highlight only that net.</p>
+    <div class="status">
+      <div class="note fix"><b>FIX</b> marks a schematic change to make before the board is made: servo header pin order, the <code>5V_IN</code> label, the INA260 VBUS link and the servo-rail capacitor.</div>
+      <div class="note warn"><b>FW</b> marks wiring the current firmware doesn't use yet. It still expects flap feedback on the front servos, and it has no encoder code.</div>
+    </div>
+  </header>
+
+  <nav class="legend" id="legend" aria-label="Wire colours"></nav>
+
+  <section id="s-overview">
+    <div class="sechead"><h2>System overview</h2><p>Power flows along the top, the car's electronics sit in the middle, and telemetry runs along the bottom. Every block shares one ground (the GND star point).</p></div>
+    <div class="diagram" id="overview">
+<svg viewBox="0 0 1230 792" role="img" aria-label="System wiring overview">
+  <rect class="zone" x="8" y="4" width="1214" height="222" rx="10"/>
+  <text class="zl" x="22" y="24">POWER</text>
+  <rect class="zone" x="8" y="236" width="1214" height="330" rx="10"/>
+  <text class="zl" x="22" y="256">ON THE CAR · VCU</text>
+  <rect class="zone" x="8" y="576" width="1214" height="212" rx="10"/>
+  <text class="zl" x="22" y="596">TELEMETRY · GROUND STATION</text>
+
+  <!-- power wires -->
+  <path class="w" data-net="v12" style="stroke:var(--v12)" d="M174 73 H210"/>
+  <path class="w" data-net="v12" style="stroke:var(--v12)" d="M306 73 H342"/>
+  <path class="w" data-net="v12" style="stroke:var(--v12)" d="M502 73 H548"/>
+  <path class="w" data-net="v12" style="stroke:var(--v12)" d="M548 73 V48 H600"/>
+  <path class="w" data-net="v12" style="stroke:var(--v12)" d="M548 73 V136 H600"/>
+  <circle class="dot" data-net="v12" cx="548" cy="73" r="5" style="fill:var(--v12)"/>
+  <text class="wl" x="512" y="96">IN−</text>
+  <path class="w" data-net="mot" style="stroke:var(--mot)" d="M780 128 H850"/>
+  <path class="w" data-net="mot" style="stroke:var(--mot)" d="M780 146 H850"/>
+  <text class="wl" x="790" y="118">OUT1–4</text>
+  <path class="w" data-net="v5" style="stroke:var(--v5)" d="M780 40 H1080 V300 H1010"/>
+  <text class="wl" x="880" y="32">+5 V rail (J15) · 5.0–5.2 V</text>
+  <path class="w" data-net="v5" style="stroke:var(--v5)" d="M1080 190 H650 V250"/>
+  <circle class="dot" data-net="v5" cx="1080" cy="190" r="5" style="fill:var(--v5)"/>
+  <text class="wl" x="880" y="183">VSYS via J17</text>
+  <text class="wl" x="1016" y="318">red wires</text>
+  <path class="w" data-net="gnd" style="stroke:var(--gnd)" d="M99 102 V178"/>
+  <path class="w" data-net="gnd" style="stroke:var(--gnd)" d="M174 208 H806"/>
+  <path class="w" data-net="gnd" style="stroke:var(--gnd)" d="M780 62 H806 V208"/>
+  <path class="w" data-net="gnd" style="stroke:var(--gnd)" d="M690 164 V208"/>
+  <path class="w" data-net="gnd" style="stroke:var(--gnd)" d="M580 208 V250"/>
+  <text class="wl" x="196" y="200">shared ground → every block</text>
+
+  <!-- VCU wires -->
+  <path class="w" data-net="i2c" style="stroke:var(--i2c)" d="M330 282 H500"/>
+  <path class="w" data-net="i2c" style="stroke:var(--i2c)" d="M470 102 V282"/>
+  <circle class="dot" data-net="i2c" cx="470" cy="282" r="5" style="fill:var(--i2c)"/>
+  <text class="wl" x="336" y="274">SDA D6 · SCL D7</text>
+  <text class="wl" x="476" y="160">I²C</text>
+  <path class="w" data-net="dig" style="stroke:var(--dig)" d="M330 346 H500"/>
+  <text class="wl" x="336" y="338">D14 · D2 · D3 · D4</text>
+  <path class="w" data-net="ow" style="stroke:var(--ow)" d="M330 410 H500"/>
+  <text class="wl" x="336" y="402">1-Wire D9</text>
+  <path class="w" data-net="dig" style="stroke:var(--dig)" d="M330 474 H500"/>
+  <text class="wl" x="336" y="466">D22 · D23</text>
+  <path class="w" data-net="pwm" style="stroke:var(--pwm)" d="M730 296 H820"/>
+  <text class="wl" x="736" y="288">PWM ×5</text>
+  <path class="w" data-net="fb" style="stroke:var(--fb)" d="M820 340 H730"/>
+  <text class="wl" x="736" y="358">fb D0 · D1</text>
+  <path class="w" data-net="pwm" style="stroke:var(--pwm)" d="M710 250 V164"/>
+  <text class="wl" x="716" y="178">PWM IO17</text>
+  <path class="w" data-net="can" style="stroke:var(--can)" d="M730 490 H820"/>
+  <text class="wl" x="736" y="482">D5 · D15</text>
+
+  <!-- telemetry wires -->
+  <path class="w" data-net="can" style="stroke:var(--can)" d="M915 518 V600 H1100 V620"/>
+  <text class="wl" x="924" y="592">CANH · CANL · GND (twisted pair)</text>
+  <path class="w" data-net="usb" style="stroke:var(--usb)" d="M1100 730 V690"/>
+  <path class="w" data-net="spi" style="stroke:var(--spi)" d="M990 655 H930"/>
+  <text class="wl" x="938" y="647">SPI1</text>
+  <path class="w dash" data-net="rf" style="stroke:var(--rf)" d="M760 655 H570"/>
+  <text class="wl" x="598" y="645">LoRa 433 MHz</text>
+  <path class="w" data-net="spi" style="stroke:var(--spi)" d="M400 655 H370"/>
+  <text class="wl" x="374" y="647">SPI</text>
+  <path class="w" data-net="usb" style="stroke:var(--usb)" d="M210 655 H174"/>
+  <text class="wl" x="176" y="647">USB</text>
+  <path class="w dash" data-net="rf" style="stroke:var(--rf)" d="M210 746 H99 V698"/>
+  <text class="wl" x="108" y="738">Wi-Fi</text>
+
+  <!-- blocks -->
+  <g class="blk" data-go="adapter" tabindex="0"><rect x="24" y="44" width="150" height="58" rx="7"/><text class="t1" x="38" y="68">12 V adapter</text><text class="t2" x="38" y="88">2.2 A · barrel jack</text></g>
+  <g class="blk" data-go="adapter" tabindex="0"><rect x="210" y="55" width="96" height="36" rx="7"/><text class="t1" x="224" y="78">Fuse 3 A</text></g>
+  <g class="blk" data-go="ina" tabindex="0"><rect x="342" y="44" width="160" height="58" rx="7"/><text class="t1" x="356" y="68">INA260</text><text class="t2" x="356" y="88">J2 + J14 · I²C 0x40</text></g>
+  <g class="blk" data-go="buck" tabindex="0"><rect x="600" y="20" width="180" height="56" rx="7"/><text class="t1" x="614" y="43">Buck converter</text><text class="t2" x="614" y="63">set 5.0–5.2 V · ≥ 5 A</text></g>
+  <g class="blk" data-go="l298n" tabindex="0"><rect x="600" y="108" width="180" height="56" rx="7"/><text class="t1" x="614" y="131">L298N</text><text class="t2" x="614" y="151">forward only · J16</text></g>
+  <g class="blk" data-go="l298n" tabindex="0"><rect x="850" y="108" width="170" height="56" rx="7"/><text class="t1" x="864" y="131">2× Johnson motor</text><text class="t2" x="864" y="151">rear axle</text></g>
+  <g class="blk" data-go="rail" tabindex="0"><rect x="24" y="178" width="150" height="40" rx="7"/><text class="t1" x="38" y="203">GND star point</text></g>
+
+  <g class="blk" data-go="mpu" tabindex="0"><rect x="150" y="258" width="180" height="48" rx="7"/><text class="t1" x="164" y="279">MPU6050</text><text class="t2" x="164" y="297">IMU · I²C 0x68</text></g>
+  <g class="blk" data-go="hall" tabindex="0"><rect x="150" y="322" width="180" height="48" rx="7"/><text class="t1" x="164" y="343">Hall sensors ×4</text><text class="t2" x="164" y="361">J13 J12 J11 J3</text></g>
+  <g class="blk" data-go="ds" tabindex="0"><rect x="150" y="386" width="180" height="48" rx="7"/><text class="t1" x="164" y="407">DS18B20 ×2</text><text class="t2" x="164" y="425">J4 J6 · motor + battery</text></g>
+  <g class="blk" data-go="enc" tabindex="0"><rect x="150" y="450" width="180" height="48" rx="7"/><text class="t1" x="164" y="471">KY-040 encoder</text><text class="t2" x="164" y="489">U3</text></g>
+  <g class="blk core" data-go="vcupwr" tabindex="0"><rect x="500" y="250" width="230" height="290" rx="9"/><text class="t1" x="516" y="280" style="font-size:19px">ESP32-C6 VCU</text><text class="t2" x="516" y="300">SmartElex Pico · U1</text><text class="t2" x="516" y="330">reads every sensor</text><text class="t2" x="516" y="348">drives every actuator</text><text class="t2" x="516" y="366">sole actuator authority</text><text class="t2" x="516" y="520">see the pinout below</text></g>
+  <g class="blk" data-go="servo" tabindex="0"><rect x="820" y="262" width="190" height="108" rx="7"/><text class="t1" x="834" y="285">Servos ×5</text><text class="t2" x="834" y="305">J5 steering</text><text class="t2" x="834" y="322">J7 FL · J8 FR (SG90)</text><text class="t2" x="834" y="339">J9 RL · J10 RR (MG996R)</text><text class="t2" x="834" y="356">rear pair has feedback</text></g>
+  <g class="blk" data-go="canmod" tabindex="0"><rect x="820" y="462" width="190" height="56" rx="7"/><text class="t1" x="834" y="485">SN65HVD230</text><text class="t2" x="834" y="505">CAN transceiver · J1</text></g>
+
+  <g class="blk" data-go="pi" tabindex="0"><rect x="990" y="620" width="220" height="70" rx="7"/><text class="t1" x="1004" y="646">Raspberry Pi 4B</text><text class="t2" x="1004" y="666">+ 2-CH CAN HAT (MCP2515)</text></g>
+  <g class="blk" data-go="pi" tabindex="0"><rect x="1010" y="730" width="180" height="44" rx="7"/><text class="t1" x="1024" y="750" style="font-size:14px">Pi supply</text><text class="t2" x="1024" y="766">own 5 V 3 A USB-C</text></g>
+  <g class="blk" data-go="racar" tabindex="0"><rect x="760" y="627" width="170" height="56" rx="7"/><text class="t1" x="774" y="650">Ra-02 (car)</text><text class="t2" x="774" y="670">SX1278 · on the Pi</text></g>
+  <g class="blk" data-go="ground" tabindex="0"><rect x="400" y="627" width="170" height="56" rx="7"/><text class="t1" x="414" y="650">Ra-02 (ground)</text><text class="t2" x="414" y="670">SX1278</text></g>
+  <g class="blk" data-go="ground" tabindex="0"><rect x="210" y="627" width="160" height="56" rx="7"/><text class="t1" x="224" y="650">Ground ESP32</text><text class="t2" x="224" y="670">classic DevKit</text></g>
+  <g class="blk" data-go="laptop" tabindex="0"><rect x="24" y="612" width="150" height="86" rx="7"/><text class="t1" x="38" y="636">Laptop 1</text><text class="t2" x="38" y="656">backend · dashboard</text><text class="t2" x="38" y="674">bridge.py</text></g>
+  <g class="blk" data-go="cam" tabindex="0"><rect x="210" y="722" width="160" height="48" rx="7"/><text class="t1" x="224" y="743">ESP32-CAM</text><text class="t2" x="224" y="761">MJPEG over Wi-Fi</text></g>
+</svg>
+    </div>
+  </section>
+
+  <section id="s-pinout">
+    <div class="sechead"><h2>VCU header pinout</h2><p>This is the U1 symbol from your KiCad schematic, with the pin numbers as drawn there. When you wire, match the board's silkscreen labels (D22, G20, RXD…) rather than a physical pin position. Grey pins stay unconnected.</p></div>
+    <div class="diagram" id="pinout"></div>
+  </section>
+
+  <section id="s-cards">
+    <div class="sechead"><h2>Connections, component by component</h2>
+      <div class="progress"><span id="progTxt">0 / 0 connections checked</span><span class="bar"><i id="progBar"></i></span><button class="plain" id="resetBtn" type="button">Clear ticks</button></div>
+    </div>
+    <div id="groups" style="display:grid;gap:30px"></div>
+  </section>
+
+  <section id="s-pi">
+    <div class="sechead"><h2>Raspberry Pi 40-pin header</h2><p>The CAN HAT takes SPI0 and two interrupt pins. The Ra-02 goes on SPI1 through the HAT's pass-through pins, so the two never share a bus.</p></div>
+    <div class="diagram" id="piheader"></div>
+  </section>
+
+  <section id="s-checks">
+    <div class="twocol">
+      <div class="panel">
+        <h3>Where builds usually go wrong</h3>
+        <ul>
+          <li><b>Servo plug on the wrong pins.</b> <span>The red wire must sit on the middle pin (+5V). The schematic headers currently put PWM in the middle. If a servo twitches, runs hot or does nothing, check this first.</span></li>
+          <li><b>No common ground.</b> <span>The CAN HAT's G, the L298N's GND, the buck's OUT− and every servo's brown wire must all reach the same ground. A missing CAN ground gives zero frames.</span></li>
+          <li><b>Buck not set before connecting.</b> <span>Many buck modules ship with the output near the input voltage. Set 5.0–5.2 V with nothing attached, then connect.</span></li>
+          <li><b>L298N ENA/ENB jumpers left on.</b> <span>The motors then ignore the PWM and run at full speed as soon as 12 V is applied.</span></li>
+          <li><b>5 V on a 3.3 V sensor.</b> <span>Halls, DS18B20s, the encoder, the MPU6050, the INA260 logic and the CAN module all run from 3.3 V. On 5 V, their outputs push 5 V into ESP32 pins.</span></li>
+          <li><b>INA260 VBUS floating.</b> <span>The voltage reads 0 V and the VCU latches a fault.</span></li>
+          <li><b>Missing pull resistors.</b> <span>R5 (GPIO8 up): without it the board may not boot. R6 (GPIO17 down): without it the motor can run during reset. R1 (1-Wire up to 3.3 V): without it no DS18B20 is found.</span></li>
+          <li><b>Ra-02 on SPI0 or on 5 V.</b> <span>SPI0 belongs to the CAN HAT, so the radio must use SPI1. The Ra-02 is 3.3 V only, and needs an antenna before power-up.</span></li>
+          <li><b>CANH/CANL swapped or termination wrong.</b> <span>With power off, expect about 60 Ω across H and L.</span></li>
+          <li><b>Encoder lines treated as I²C.</b> <span>D22/D23 are also the on-board expander's bus. The firmware must never start I²C on them.</span></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Build and test order</h3>
+        <ol>
+          <li><b>Power chain, no loads.</b> <span>Adapter → fuse → INA260 → buck. Set the buck to 5.0–5.2 V and measure it.</span></li>
+          <li><b>Ground star.</b> <span>Adapter −, buck −, then every block as you add it.</span></li>
+          <li><b>VCU on USB only.</b> <span><code>status</code> should report <code>selftest=0x00</code>.</span></li>
+          <li><b>I²C.</b> <span>MPU6050 and INA260, then <code>i2cscan</code>: expect 0x40 and 0x68.</span></li>
+          <li><b>Halls, DS18B20s, encoder.</b> <span>Spin each wheel and watch <code>status</code>. Then run <code>ds</code> and <code>tempmap</code>.</span></li>
+          <li><b>Servos, linkages off.</b> <span>Move each one with <code>servo &lt;id&gt; 20</code>, then calibrate the rear pair.</span></li>
+          <li><b>L298N and motors, wheels free.</b> <span><code>motor 30</code>: both wheels forward, current under 2 A.</span></li>
+          <li><b>CAN to the Pi.</b> <span><code>sudo setup/can_up.sh</code> reports which canX has the VCU.</span></li>
+          <li><b>Radios.</b> <span>Antennas on, Pi gateway, then <code>bridge.py</code> on the laptop.</span></li>
+          <li><b>Camera.</b> <span>Paste its stream URL into the dashboard.</span></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <footer>Generated from the project's KiCad schematic (30 Sep 2026), the Stage 2d firmware, <code>raspberry_pi/main.py</code> and <code>ground_radio_bridge.ino</code>. The written version is <code>VCU_final_connections.txt</code>. Your ticks are saved in this browser only.</footer>
+</div>
+
+<script>
+(function(){
+const NETS = {
+  v12:["12 V supply"], v5:["+5 V rail"], v33:["+3.3 V"], gnd:["Ground"], pwm:["PWM / motor signal"],
+  fb:["Servo feedback (analog)"], dig:["Digital input"], ow:["1-Wire"], i2c:["I²C"], can:["CAN"],
+  spi:["SPI"], rf:["Radio / Wi-Fi",true], mot:["Motor output"], usb:["USB / supply"], ctl:["Reset / control"], nc:["Not connected",true]
+};
+
+/* ---------- component cards ---------- */
+const G = [
+ {title:"Power", cards:[
+  {id:"adapter", t:"12 V adapter + fuse", part:"12 V / 2.2 A DC adapter · 3 A inline fuse", rows:[
+    ["+ (centre pin)","3 A fuse → INA260 IN+ (J14 pin 2)","v12"],
+    ["−","GND star point","gnd"]],
+   notes:["Only the car electronics run from this adapter. The Pi has its own supply.","Put the fuse in the + lead, as close to the adapter jack as you can."]},
+  {id:"ina", t:"INA260 power monitor", part:"J2 (module header) + J14 (power socket) · I²C 0x40", rows:[
+    ["VCC","+3.3 V rail","v33"],["GND","GND","gnd"],
+    ["SCL","VCU D7 (GPIO7)","i2c"],["SDA","VCU D6 (GPIO6)","i2c"],
+    ["ALERT","not connected","nc"],
+    ["IN+ (J14 pin 2)","12 V + from the 3 A fuse","v12"],
+    ["IN− (J14 pin 3)","Buck IN+ and L298N 12 V terminal","v12","Everything after IN− is measured."],
+    ["VBUS (J14 pin 1)","Link to IN−","v12","A floating VBUS reads 0 V and the VCU faults.","fix"]],
+   notes:["The whole supply current passes through J14's header pins. That's fine at 2.2 A, but for a LiPo later, move the power path to the module's screw terminal.","Make the IN+/IN− traces at least 1.5 mm wide."]},
+  {id:"buck", t:"Buck converter", part:"12 V → 5.0–5.2 V, rated 5 A or more", rows:[
+    ["IN+","INA260 IN− node","v12"],["IN−","GND star point","gnd"],
+    ["OUT+","+5V rail → J15 pin 1","v5","Set 5.0–5.2 V BEFORE connecting anything."],
+    ["OUT−","GND → J15 pin 2","gnd"]],
+   notes:["Not 6 V: the VCU's VSYS shares this rail. SG90 and MG996R both run fine at 5 V.","Two MG996R can pull about 2.5 A each when stalled, so pick a buck rated 5 A or more."]},
+  {id:"rail", t:"+5 V rail and ground", part:"J15 power input · J17 VSYS jumper · GND star", rows:[
+    ["J15 pin 1 (+5V)","Servo headers pin 2, all five (red wires)","v5","Replace the 5V_IN labels with the +5V symbol. As drawn, the servos have no supply.","fix"],
+    ["J17","VCU VSYS (header pin 39)","v5","Remove J17 while USB is plugged in, unless the board has a VBUS→VSYS diode."],
+    ["C4 470–1000 µF","Across +5V and GND next to J9/J10","v5","Plus C5 100 nF. 10 V rating or higher.","fix"],
+    ["GND star","Adapter −, buck −, L298N GND, VCU GND, servo brown wires, CAN module GND, CAN HAT G","gnd"]],
+   notes:["Run the motor and servo grounds back to one point near the supply. Don't daisy-chain them: motor current in a shared signal ground corrupts the IMU and ADC readings."]}
+ ]},
+ {title:"VCU", cards:[
+  {id:"vcupwr", t:"ESP32-C6 VCU: power and control pins", part:"U1 · SmartElex ESP32-C6-Mini-1-N4 Pico", rows:[
+    ["3V3 (pin 36)","+3.3 V rail OUT → every sensor and the CAN module","v33","It's the module regulator's output. Don't feed 3.3 V in here."],
+    ["VSYS (pin 39)","+5V rail via J17","v5"],
+    ["EN (pin 37)","not connected","nc","Most likely the regulator enable on this board. The old R11/C3/SW1 reset circuit held it low and the board would not power up, so it is removed. Use the module's own RESET button."],
+    ["GND (23, 28, 33, 38, 3, 8, 13)","GND","gnd"],
+    ["VBUS (pin 40)","not connected (USB 5 V)","nc"],
+    ["TXD / GPIO16 (pin 1)","spare, not connected","nc","The ROM prints boot text on this pin."],
+    ["E1–E8, RUN","not connected","nc","E1–E8 are expander pins."]],
+   notes:["The pinout above shows every signal pin."]}
+ ]},
+ {title:"Sensors", cards:[
+  {id:"mpu", t:"MPU6050 IMU", part:"U2 · GY-521 · I²C 0x68", rows:[
+    ["VCC","+3.3 V","v33"],["GND","GND","gnd"],
+    ["SCL","VCU D7 (GPIO7) · R9 4.7k to 3.3 V","i2c"],["SDA","VCU D6 (GPIO6) · R10 4.7k to 3.3 V","i2c"],
+    ["AD0","GND","gnd","Sets address 0x68. If it floats, the address becomes 0x69 and the self-test fails."],
+    ["XDA · XCL · INT","not connected","nc"]],
+   notes:["Mount it rigidly, as close to the car's centre of mass as you can."]},
+  {id:"hall", t:"Hall wheel-speed sensors ×4", part:"LM393/A3144 modules · J13 J12 J11 J3 · VCC, GND, OUT", rows:[
+    ["J13 OUT · front left","VCU D14 (GPIO14)","dig"],
+    ["J12 OUT · front right","VCU D2 (GPIO2)","dig"],
+    ["J11 OUT · rear left","VCU D3 (GPIO3)","dig"],
+    ["J3 OUT · rear right","VCU D4 (GPIO4)","dig"],
+    ["VCC (all four)","+3.3 V (not 5 V)","v33"],
+    ["GND (all four)","GND","gnd"]],
+   notes:["Check the header order on your modules: some are DO / GND / VCC.","Label each connector by wheel in the schematic, so FL and FR can't be swapped.","Two to four magnets on each rear wheel give a much smoother lap position on the dyno."]},
+  {id:"ds", t:"DS18B20 temperature ×2", part:"J4, J6 · one shared 1-Wire bus", rows:[
+    ["VCC (both)","+3.3 V","v33","Wire all three leads. Don't use parasite power."],
+    ["GND (both)","GND","gnd"],
+    ["DATA (both)","VCU D9 (GPIO9)","ow"],
+    ["R1 4.7k","Between D9 and +3.3 V (not GND)","ow","One resistor for the whole bus. It also holds the BOOT strap high."]],
+   notes:["Assign the roles on the console: <code>ds</code>, then <code>tempmap &lt;battery&gt; &lt;motor&gt;</code>, then <code>cal save</code>."]},
+  {id:"enc", t:"KY-040 rotary encoder", part:"U3 · knob / trim input", rows:[
+    ["CLK","R13 1k → VCU D22 (GPIO22)","dig","","fw"],
+    ["DT","R12 1k → VCU D23 (GPIO23)","dig","","fw"],
+    ["SW","not connected","nc","For the push button later: GPIO16 (TXD) through 1k."],
+    ["+ (VCC)","+3.3 V (not 5 V)","v33"],["GND","GND","gnd"]],
+   notes:["D22/D23 are also the on-board TCA9554 expander's I²C lines. Sharing them is electrically safe, but the firmware must never start I²C on them.","Use the encoder as a knob. It's too coarse, and only relative, to work as steering feedback."]}
+ ]},
+ {title:"Actuators", cards:[
+  {id:"servo", t:"Servos ×5", part:"J5 steering (MG995) · J7 FL, J8 FR (SG90) · J9 RL, J10 RR (MG996R with feedback)", plug:true, rows:[
+    ["J5 PWM · steering","VCU D18 (GPIO18)","pwm","MG995 (open loop). Set its range with pulse 0 &lt;min&gt; &lt;max&gt;."],
+    ["J7 PWM · flap FL (SG90)","VCU D19 (GPIO19)","pwm"],
+    ["J8 PWM · flap FR (SG90)","VCU G20 (GPIO20)","pwm"],
+    ["J9 PWM · flap RL (MG996R)","VCU G21 (GPIO21)","pwm"],
+    ["J10 PWM · flap RR (MG996R)","VCU D8 (GPIO8) · R5 10k to 3.3 V","pwm","GPIO8 is a strapping pin, and R5 holds it high so the board boots."],
+    ["J9 pin 4 · RL feedback wire","R3 10k → VCU D0 (GPIO0); R7 10k + C2 100 nF to GND","fb","","fw"],
+    ["J10 pin 4 · RR feedback wire","R2 10k → VCU D1 (GPIO1); R8 10k + C1 100 nF to GND","fb","","fw"],
+    ["Red wires (all five)","+5V rail","v5"],
+    ["Brown wires (all five)","GND","gnd"]],
+   notes:["<b>FIX the header pin order.</b> A servo plug is brown, red, orange with +V in the middle. Renumber J5/J7/J8 to 1 GND, 2 +5V, 3 PWM, and J9/J10 to 1 GND, 2 +5V, 3 PWM, 4 FB.","Before wiring the feedback to the VCU, measure the divider tap at both ends of travel: it must stay under 3.3 V.","After the firmware update, calibrate the rear pair with the linkages off: <code>servo 3 0</code> → <code>cal 3 min</code>, <code>servo 3 45</code> → <code>cal 3 max</code>, and the same for 4, then <code>cal save</code>."]},
+  {id:"l298n", t:"L298N motor driver + 2 motors", part:"J16 (2 pins) · forward only · 1 kHz PWM", rows:[
+    ["ENA + ENB (tied)","J16 pin 1 ← VCU RXD (GPIO17) · R6 4.7k to GND","pwm","Take the ENA and ENB jumpers OFF, or the PWM is ignored."],
+    ["GND","GND star point (and J16 pin 2)","gnd"],
+    ["12 V terminal","INA260 IN− node","v12"],
+    ["IN1 + IN3","The L298N's own 5V pin","v5","Direction is strapped by hand; the MCU doesn't drive it."],
+    ["IN2 + IN4","GND","gnd"],
+    ["OUT1 / OUT2","Rear-left motor","mot"],
+    ["OUT3 / OUT4","Rear-right motor","mot"]],
+   notes:["Keep the L298N's 12 V regulator jumper fitted, so its 5V pin can supply the IN straps.","If a wheel turns backwards, swap THAT motor's two wires. Never swap the IN straps.","R6 keeps the motors off while the VCU is resetting. It isn't optional."]}
+ ]},
+ {title:"CAN and gateway", cards:[
+  {id:"canmod", t:"SN65HVD230 CAN module", part:"J1 · on the VCU board · 500 kbit/s", rows:[
+    ["3V3","+3.3 V","v33"],["GND","GND","gnd"],
+    ["CTX","← VCU D5 (GPIO5)","can"],["CRX","→ VCU D15 (GPIO15)","can"],
+    ["CANH","Pi CAN HAT H","can","Twisted pair with CANL"],
+    ["CANL","Pi CAN HAT L","can"],
+    ["GND (extra wire)","Pi CAN HAT G","gnd","Mandatory. Without it: no frames, ERROR-PASSIVE."]],
+   notes:["Fit 120 Ω only at the two ends of the bus (this module and the HAT). With power off, expect about 60 Ω across H and L."]},
+  {id:"pi", t:"Raspberry Pi 4B + 2-CH CAN HAT", part:"Gateway only · MCP2515 ×2 · SPI0", rows:[
+    ["USB-C power","Own 5 V / 3 A supply","usb","Never the car's buck."],
+    ["CAN HAT","Plugged onto the 40-pin header","spi","Uses GPIO7/8/9/10/11 (SPI0), GPIO23, GPIO25, 5V, 3V3, GND"],
+    ["HAT H / L / G","VCU CAN module CANH / CANL / GND","can","Either channel; <code>can_up.sh</code> reports which canX."],
+    ["Wi-Fi","SSID CTRL (MODE A, and SSH from laptop 2)","rf"]],
+   notes:["In <code>/boot/firmware/config.txt</code>, under <code>[all]</code>:<pre class=\"cfg\">dtparam=spi=on\ndtoverlay=mcp2515-can1,oscillator=16000000,interrupt=25\ndtoverlay=mcp2515-can0,oscillator=16000000,interrupt=23\ndtoverlay=spi1-1cs</pre>","Read the crystal on the HAT. If it says 8.000 or 12.000, change <code>oscillator=</code>."]}
+ ]},
+ {title:"Radio link and ground station", cards:[
+  {id:"racar", t:"Ra-02 (car side) on the Pi", part:"SX1278 · SPI1 · wired to the HAT's pass-through pins", rows:[
+    ["3.3V","Pi 3V3 · header pin 1 (or 17)","v33","NEVER 5 V"],
+    ["GND","Pi GND · pin 6, plus a second GND on pin 9","gnd"],
+    ["NSS","GPIO18 · pin 12","spi","SPI1 CE0 → /dev/spidev1.0"],
+    ["SCK","GPIO21 · pin 40","spi"],["MOSI","GPIO20 · pin 38","spi"],["MISO","GPIO19 · pin 35","spi"],
+    ["RESET","GPIO17 · pin 11","ctl"],["DIO0","GPIO27 · pin 13","dig","Send-done / receive-done"],
+    ["DIO1–DIO5","not connected","nc"],
+    ["Antenna","433 MHz, fitted before power-up","rf"]],
+   notes:["The Ra-02's pads are 1.27 mm pitch, so use an adapter board. Keep the wires under 15 cm.","At startup the gateway checks the chip (register 0x42 must read 0x12) and stops with a wiring message if it doesn't."]},
+  {id:"ground", t:"Ground ESP32 + Ra-02", part:"Classic ESP32 DevKit · VSPI · USB to laptop 1", rows:[
+    ["Ra-02 3.3V","ESP32 3V3","v33"],["Ra-02 GND","ESP32 GND","gnd"],
+    ["Ra-02 NSS","GPIO5","spi"],["Ra-02 SCK","GPIO18","spi"],["Ra-02 MOSI","GPIO23","spi"],["Ra-02 MISO","GPIO19","spi"],
+    ["Ra-02 RESET","GPIO14","ctl"],["Ra-02 DIO0","GPIO26","dig"],
+    ["ESP32 USB","Laptop 1 (bridge.py --radio serial)","usb","Close the Serial Monitor first."],
+    ["Antenna","433 MHz, fitted before power-up","rf"]],
+   notes:["Both radios: 433.0 MHz · SF7 · BW 250 kHz · CR 4/5 · sync word 0x12 · 10 dBm. These are already set in the code."]},
+  {id:"cam", t:"ESP32-CAM", part:"Independent Wi-Fi MJPEG camera", rows:[
+    ["5V","5 V supply, with 470–1000 µF across it","v5"],["GND","GND","gnd"],
+    ["Wi-Fi","SSID CTRL → http://&lt;ip&gt;:81/stream","rf","Paste the URL into the dashboard's Camera page."]],
+   notes:["Only the backend may open the stream. A browser tab or VLC on it makes the camera report busy."]},
+  {id:"laptop", t:"Laptop 1 (engineer station)", part:"10.49.218.128 · backend, dashboard, bridge.py", rows:[
+    ["USB","Ground ESP32","usb"],
+    ["Wi-Fi","SSID CTRL: Pi (10.49.218.178), ESP32-CAM, laptop 2","rf"]],
+   notes:["Start in this order: backend, dashboard (Live Mode), <code>bridge.py</code>, then the Pi gateway."]}
+ ]}
+];
+
+const LS = "f1vcu-wiring-v1";
+let ticks = {};
+try { ticks = JSON.parse(localStorage.getItem(LS) || "{}") || {}; } catch(e) { ticks = {}; }
+const save = () => { try { localStorage.setItem(LS, JSON.stringify(ticks)); } catch(e) {} };
+
+const groupsEl = document.getElementById("groups");
+let total = 0;
+G.forEach(g => {
+  const gd = document.createElement("div"); gd.className = "group";
+  gd.innerHTML = `<h3>${g.title}</h3>`;
+  const cs = document.createElement("div"); cs.className = "cards";
+  g.cards.forEach(c => {
+    const a = document.createElement("article"); a.className = "card"; a.id = c.id;
+    let rows = c.rows.map((r,i) => {
+      const [pin,dest,net,sub,flag] = r; const key = c.id+"-"+i; total++;
+      const tag = flag==="fix" ? '<span class="tag fix">FIX</span>' : flag==="fw" ? '<span class="tag fw">FW</span>' : "";
+      return `<label class="row${net==="nc"?" nc":""}" data-net="${net}" style="--c:var(--${net})">
+        <input type="checkbox" id="${key}" data-key="${key}" ${ticks[key]?"checked":""}>
+        <span class="pin">${pin}</span><span class="wire" aria-hidden="true"></span>
+        <span class="dest">${dest}${tag}${sub?`<small>${sub}</small>`:""}</span></label>`;
+    }).join("");
+    const plug = c.plug ? `<div class="plug"><em>Servo plug →</em><span class="b">1 GND · brown</span><span class="r">2 +5V · red</span><span class="o">3 PWM · orange</span><span class="f">4 FB · MG996R only</span></div>` : "";
+    a.innerHTML = `<header><div><h3>${c.t}</h3><div class="part">${c.part}</div></div><span class="count" data-card="${c.id}"></span></header>${plug}<div class="rows">${rows}</div>${c.notes&&c.notes.length?`<ul>${c.notes.map(n=>`<li>${n}</li>`).join("")}</ul>`:""}`;
+    cs.appendChild(a);
+  });
+  gd.appendChild(cs); groupsEl.appendChild(gd);
+});
+
+function refresh(){
+  let done = 0;
+  document.querySelectorAll(".card").forEach(card => {
+    const boxes = card.querySelectorAll("input[type=checkbox]");
+    const n = [...boxes].filter(b=>b.checked).length; done += n;
+    const el = card.querySelector(".count");
+    el.textContent = `${n} / ${boxes.length}`; el.classList.toggle("done", n===boxes.length);
+  });
+  document.getElementById("progTxt").textContent = `${done} / ${total} connections checked`;
+  document.getElementById("progBar").style.width = (total? done/total*100 : 0) + "%";
+}
+groupsEl.addEventListener("change", e => {
+  const k = e.target.dataset && e.target.dataset.key; if (!k) return;
+  if (e.target.checked) ticks[k] = 1; else delete ticks[k];
+  save(); refresh();
+});
+const rb = document.getElementById("resetBtn"); let armed = false, armT;
+rb.addEventListener("click", () => {
+  if (!armed) { armed = true; rb.textContent = "Click again to clear"; armT = setTimeout(()=>{armed=false; rb.textContent="Clear ticks";}, 3000); return; }
+  clearTimeout(armT); armed = false; rb.textContent = "Clear ticks";
+  ticks = {}; save(); document.querySelectorAll("#groups input[type=checkbox]").forEach(b=>b.checked=false); refresh();
+});
+refresh();
+
+/* ---------- SVG helpers ---------- */
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, text){ const e=document.createElementNS(NS,tag); for (const k in attrs) e.setAttribute(k,attrs[k]); if (text!=null) e.textContent=text; return e; }
+
+/* ---------- VCU pinout ---------- */
+const L = [
+ [21,"E5",null,"nc","not connected"],[22,"E4",null,"nc","not connected"],[23,"GND",null,"gnd","GND"],
+ [24,"E3",null,"nc","not connected"],[25,"E2",null,"nc","not connected"],
+ [26,"D22",22,"dig","KY-040 CLK via R13 1k  [FW]","enc"],[27,"D23",23,"dig","KY-040 DT via R12 1k  [FW]","enc"],
+ [28,"GND",null,"gnd","GND"],[29,"E1",null,"nc","not connected"],[30,"RUN",null,"nc","not connected"],
+ [31,"D3",3,"dig","Hall RL OUT (J11)","hall"],[32,"D2",2,"dig","Hall FR OUT (J12)","hall"],[33,"GND",null,"gnd","GND"],
+ [34,"D1",1,"fb","RR flap feedback · R2 10k (R8 + C1 to GND)  [FW]","servo"],
+ [35,"D0",0,"fb","RL flap feedback · R3 10k (R7 + C2 to GND)  [FW]","servo"],
+ [36,"3V3",null,"v33","+3.3 V rail OUT → sensors, CAN module","vcupwr"],
+ [37,"EN",null,"nc","not connected (reset circuit removed)","vcupwr"],
+ [38,"GND",null,"gnd","GND"],[39,"VSYS",null,"v5","+5 V rail via J17","rail"],[40,"VBUS",null,"nc","not connected (USB 5 V)"]
+];
+const R = [
+ [20,"E6",null,"nc","not connected"],[19,"E7",null,"nc","not connected"],[18,"E8",null,"nc","not connected"],
+ [17,"G21",21,"pwm","Flap RL servo PWM (J9, MG996R)","servo"],[16,"G20",20,"pwm","Flap FR servo PWM (J8, SG90)","servo"],
+ [15,"D19",19,"pwm","Flap FL servo PWM (J7, SG90)","servo"],[14,"D18",18,"pwm","Steering servo PWM (J5)","servo"],
+ [13,"GND",null,"gnd","GND"],
+ [12,"D9",9,"ow","DS18B20 DATA ×2 · R1 4.7k to 3V3","ds"],
+ [11,"D8",8,"pwm","Flap RR servo PWM (J10) · R5 10k to 3V3","servo"],
+ [10,"D15",15,"can","CAN module CRX","canmod"],[9,"D14",14,"dig","Hall FL OUT (J13)","hall"],[8,"GND",null,"gnd","GND"],
+ [7,"D7",7,"i2c","SCL → MPU6050, INA260 · R9 4.7k","mpu"],[6,"D6",6,"i2c","SDA → MPU6050, INA260 · R10 4.7k","mpu"],
+ [5,"D5",5,"can","CAN module CTX","canmod"],[4,"D4",4,"dig","Hall RR OUT (J3)","hall"],[3,"GND",null,"gnd","GND"],
+ [2,"RXD",17,"pwm","L298N ENA+ENB via J16 · R6 4.7k to GND","l298n"],[1,"TXD",16,"nc","spare (GPIO16)"]
+];
+(function(){
+  const W=1170, top=78, step=29, H=top+20*step+30, mx=430, mw=320;
+  const s = el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":"ESP32-C6 VCU header pinout"});
+  s.appendChild(el("rect",{x:mx,y:top-44,width:mw,height:20*step+56,rx:12,style:"fill:var(--surface2);stroke:var(--ink);stroke-width:2"}));
+  s.appendChild(el("text",{class:"modtitle",x:mx+mw/2,y:top+8*step,"text-anchor":"middle"},"ESP32-C6 VCU"));
+  s.appendChild(el("text",{class:"modsub",x:mx+mw/2,y:top+8*step+22,"text-anchor":"middle"},"SmartElex Pico · U1"));
+  s.appendChild(el("text",{class:"modsub",x:mx+mw/2,y:top+8*step+40,"text-anchor":"middle"},"pin numbers as in your schematic"));
+  s.appendChild(el("rect",{x:mx+mw/2-34,y:top-54,width:68,height:18,rx:4,style:"fill:var(--surface);stroke:var(--ink);stroke-width:1.5"}));
+  function side(list, left){
+    list.forEach((p,i) => {
+      const [num,lab,gpio,net,dest,go] = p; const y = top + i*step;
+      const g = el("g",{class:"pinrow","data-net":net}); if (go) { g.setAttribute("data-go",go); g.setAttribute("tabindex","0"); }
+      const ex = left? mx : mx+mw, sx = left? mx-56 : mx+mw+56;
+      g.appendChild(el("line",{x1:ex,y1:y,x2:sx,y2:y,class:"w"+(net==="nc"?" dash":""),"data-net":net,style:`stroke:var(--${net});stroke-width:${net==="nc"?2:3.5}`}));
+      g.appendChild(el("circle",{cx:ex,cy:y,r:5,style:`fill:var(--surface);stroke:var(--${net});stroke-width:2.5`}));
+      g.appendChild(el("text",{class:"pn",x:left? ex+12 : ex-12,y:y+4,"text-anchor":left?"start":"end"},String(num)));
+      g.appendChild(el("text",{class:"pl",x:left? ex+34 : ex-34,y:y+4.5,"text-anchor":left?"start":"end"},lab + (gpio!=null && lab!=="D"+gpio && lab!=="G"+gpio ? ` · IO${gpio}` : "")));
+      g.appendChild(el("text",{class:"pd"+(net==="nc"?" nc":""),x:left? sx-8 : sx+8,y:y+4.5,"text-anchor":left?"end":"start"},dest));
+      s.appendChild(g);
+    });
+  }
+  side(L,true); side(R,false);
+  document.getElementById("pinout").appendChild(s);
+})();
+
+/* ---------- Pi header ---------- */
+const PI = {
+ 1:["3V3","v33","Ra-02 3.3V · HAT","racar"],2:["5V","v5","CAN HAT","pi"],3:["GPIO2","nc",""],4:["5V","v5","CAN HAT","pi"],
+ 5:["GPIO3","nc",""],6:["GND","gnd","Ra-02 GND","racar"],7:["GPIO4","nc",""],8:["GPIO14","nc",""],9:["GND","gnd","Ra-02 GND (2nd)","racar"],
+ 10:["GPIO15","nc",""],11:["GPIO17","ctl","Ra-02 RESET","racar"],12:["GPIO18","spi","Ra-02 NSS (SPI1 CE0)","racar"],
+ 13:["GPIO27","dig","Ra-02 DIO0","racar"],14:["GND","gnd","HAT","pi"],15:["GPIO22","nc",""],16:["GPIO23","can","HAT INT (can0 overlay)","pi"],
+ 17:["3V3","v33","HAT","pi"],18:["GPIO24","nc",""],19:["GPIO10","can","HAT SPI0 MOSI","pi"],20:["GND","gnd","HAT","pi"],
+ 21:["GPIO9","can","HAT SPI0 MISO","pi"],22:["GPIO25","can","HAT INT (can1 overlay)","pi"],23:["GPIO11","can","HAT SPI0 SCLK","pi"],
+ 24:["GPIO8","can","HAT CE0","pi"],25:["GND","gnd",""],26:["GPIO7","can","HAT CE1","pi"],27:["ID_SD","nc",""],28:["ID_SC","nc",""],
+ 29:["GPIO5","nc",""],30:["GND","gnd",""],31:["GPIO6","nc",""],32:["GPIO12","nc",""],33:["GPIO13","nc",""],34:["GND","gnd",""],
+ 35:["GPIO19","spi","Ra-02 MISO (SPI1)","racar"],36:["GPIO16","nc",""],37:["GPIO26","nc",""],38:["GPIO20","spi","Ra-02 MOSI (SPI1)","racar"],
+ 39:["GND","gnd",""],40:["GPIO21","spi","Ra-02 SCK (SPI1)","racar"]
+};
+(function(){
+  const W=1080, top=60, step=26, H=top+20*step+24, cx1=512, cx2=568;
+  const s = el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":"Raspberry Pi 40-pin header"});
+  s.appendChild(el("rect",{x:cx1-26,y:top-30,width:cx2-cx1+52,height:20*step+34,rx:8,style:"fill:var(--surface2);stroke:var(--ink);stroke-width:2"}));
+  s.appendChild(el("text",{class:"modsub",x:(cx1+cx2)/2,y:top-38,"text-anchor":"middle"},"Pi 4B header · pin 1 next to the SD-card end"));
+  for (let r=0;r<20;r++){
+    [2*r+1, 2*r+2].forEach(n => {
+      const [nm,net,dest,go] = PI[n]; const left = n%2===1; const y = top + r*step; const x = left? cx1 : cx2;
+      const used = dest !== "";
+      const g = el("g",{class:"pinrow","data-net":net}); if (go){ g.setAttribute("data-go",go); g.setAttribute("tabindex","0"); }
+      const color = used ? `var(--${net})` : "var(--nc)";
+      if (used) g.appendChild(el("line",{x1:x,y1:y,x2:left? x-120 : x+120,y2:y,class:"w","data-net":net,style:`stroke:${color};stroke-width:3`}));
+      g.appendChild(el("rect",{x:x-8,y:y-8,width:16,height:16,rx:n===1?1:8,style:`fill:${used?color:"var(--surface)"};stroke:${color};stroke-width:2`}));
+      g.appendChild(el("text",{class:"pn",x:left? x-14 : x+14,y:y-8+0,"text-anchor":left?"end":"start",style:"font-size:9.5px"},String(n)));
+      g.appendChild(el("text",{class:"pl",x:left? x-126 : x+126,y:y+4.5,"text-anchor":left?"end":"start",style:used?"":"fill:var(--muted);font-weight:400"},nm));
+      if (used) g.appendChild(el("text",{class:"pd",x:left? x-194 : x+194,y:y+4.5,"text-anchor":left?"end":"start"},dest));
+      s.appendChild(g);
+    });
+  }
+  document.getElementById("piheader").appendChild(s);
+})();
+
+/* ---------- legend + highlighting ---------- */
+const leg = document.getElementById("legend");
+let active = null;
+Object.entries(NETS).forEach(([k,[name,dash]]) => {
+  const b = document.createElement("button"); b.type="button"; b.className="chip"; b.style.setProperty("--c",`var(--${k})`);
+  b.setAttribute("aria-pressed","false"); b.dataset.net=k;
+  b.innerHTML = `<i class="${dash?"dash":""}"></i>${name}`;
+  b.addEventListener("click", () => { active = active===k ? null : k; applyNet(); });
+  leg.appendChild(b);
+});
+const hint = document.createElement("span"); hint.className="hint"; hint.textContent="Click a colour to highlight it everywhere"; leg.appendChild(hint);
+function applyNet(){
+  leg.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.net===active)));
+  document.querySelectorAll("[data-net]").forEach(n => {
+    if (n.classList.contains("chip")) return;
+    n.classList.toggle("dim", active!==null && n.dataset.net!==active);
+  });
+}
+
+/* ---------- click to jump ---------- */
+function go(id){
+  const t = document.getElementById(id); if (!t) return;
+  t.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto":"smooth", block:"start"});
+  t.classList.add("flash"); setTimeout(()=>t.classList.remove("flash"),1600);
+}
+document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g) go(g.dataset.go); });
+document.addEventListener("keydown", e => { if ((e.key==="Enter"||e.key===" ") && e.target.dataset && e.target.dataset.go) { e.preventDefault(); go(e.target.dataset.go); } });
+})();
+</script>

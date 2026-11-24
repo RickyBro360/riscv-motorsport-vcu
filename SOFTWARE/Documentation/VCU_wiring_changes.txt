@@ -1,0 +1,28 @@
+# VCU wiring changes — Stage 2c (last hardware-tested) -> Stage 2d (this archive)
+
+Tested in 2c and UNCHANGED (no rewiring, no re-test needed beyond a smoke check):
+  Hall FL GPIO14 · Hall FR GPIO2 · Hall RR GPIO4
+  MG996R flap LF PWM GPIO19 + feedback GPIO0 · flap RF PWM GPIO20 + feedback GPIO1
+  MPU6050 + INA260 on I2C GPIO6/GPIO7 · DS18B20 x2 on 1-Wire GPIO9 · CAN GPIO5/GPIO15
+
+MOVED — re-wire and RE-TEST:
+  Hall RL        GPIO8  -> GPIO3   GPIO8 is a boot strapping pin; a magnet parked at the
+                                   sensor pulled it LOW at reset and the board could fail
+                                   to boot. GPIO3 was the BTS7960 enable, now free.
+  Flap RR servo  GPIO22 -> GPIO8   GPIO22 is the on-board TCA9554 expander's SDA line.
+                                   ADD R9: 10k from GPIO8 to 3V3 (keeps the strap HIGH).
+  Motor          BTS7960 on GPIO17 (RPWM) / GPIO16 (LPWM) / GPIO3 (EN), 20 kHz
+                 -> L298N: ENA+ENB tied, driven by GPIO17 at 1 kHz; IN1+IN3 to +5V,
+                    IN2+IN4 to GND at the driver (forward only, release = coast).
+                    ADD R2: 10k from GPIO17 to GND (the only motor control now floats
+                    through reset without it). REMOVE the ENA/ENB jumpers on the L298N.
+                    GPIO16 is left unused (the ROM prints boot text on it).
+
+NEW, never tested: flap LR (SG90, GPIO21), flap RR (SG90, GPIO8), steering servo (GPIO18),
+the L298N + both Johnson motors.
+
+Firmware changes that follow the wiring (vcu_logic.h / .ino):
+  VCU_MOTOR_DRIVER_L298N 1, VCU_MOTOR_FORWARD_ONLY 1 (build refuses anything else)
+  CFG_WHEEL_DIAMETER_M 0.064 -> 0.070 (ASSUMED; measure the tyre)
+  CFG_WHEEL_STOP_TIMEOUT_MS 500 -> 1500 (one magnet, slow dyno speeds)
+  Vehicle speed = FRONT average when the fronts turn, else REAR average

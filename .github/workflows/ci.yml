@@ -1,0 +1,68 @@
+# Builds the firmware for both chips, runs the Python tests and builds the dashboard on every push.
+# Paths match the project layout; adjust the test commands if your folders differ.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  firmware:
+    name: Firmware (${{ matrix.board.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - { name: ESP32-C6 VCU,          fqbn: "esp32:esp32:esp32c6:CDCOnBoot=cdc" }
+          - { name: classic ESP32 stand-in, fqbn: "esp32:esp32:esp32" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install esp32 core 3.3.2
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.2 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Compile VCU sketch
+        run: arduino-cli compile --fqbn "${{ matrix.board.fqbn }}" --warnings default HARDWARE/esp32/main_updated_corrected__1_
+
+  python-tests:
+    name: Python tests (hardware logic, backend, analysis)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install pytest
+          for f in SOFTWARE/backend/requirements.txt SOFTWARE/analysis/requirements.txt HARDWARE/tests/requirements.txt; do
+            [ -f "$f" ] && pip install -r "$f" || true
+          done
+      - name: Hardware / firmware-logic tests (g++ builds vcu_logic.h for the host)
+        run: python -m pytest -q HARDWARE/tests
+      - name: Backend tests
+        working-directory: SOFTWARE/backend
+        run: python -m pytest -q
+      - name: Analysis tests
+        working-directory: SOFTWARE/analysis
+        run: python -m pytest -q
+
+  dashboard:
+    name: Dashboard build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: SOFTWARE/dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: SOFTWARE/dashboard/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build

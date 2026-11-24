@@ -1,0 +1,378 @@
+# VCU — final connection reference   (PCB schematic "MajorProject-VCU.kicad_sch", 2026-09-30)
+
+>>> 2026-11-12: the ESP32-C6 (U1) is dead (12 V). Until it is replaced, a classic ESP32 DevKit is
+>>> jumpered into the U1 socket: SOFTWARE/Documentation/VCU_classic_ESP32_stopgap.md maps every
+>>> socket pin below to the DevKit pin it now comes from. Everything else in this file still holds.
+
+This supersedes every earlier connection list in this project.
+- Reference designators (J1..J17, R1..R13, C1..C2) are the ones in your KiCad schematic.
+- 2026-10-01: the external enable/reset circuit (R11, C3, SW1) was REMOVED. See EN (37) below.
+- Items marked  >>> FIX  are changes to make in the schematic before ordering the board.
+- Items marked  [FW]  needed firmware work: the encoder is supported since FW 2.2 (knob = duty cap).
+- This file is the PROTOTYPE build. The PCB rev B build is in PCB_revB_connections.md.
+
+Hardware in this configuration:
+* SmartElex ESP32-C6-Mini-1-N4 Pico (U1) — the VCU
+* MPU6050 IMU (U2)
+* INA260 power monitor module (J2 + J14)
+* 4x hall modules (LM393/A3144)
+* 2x DS18B20
+* KY-040 rotary encoder (U3)
+* 2x MG996R WITH pot feedback: rear flaps RL, RR
+* 2x SG90, open loop: front flaps FL, FR
+* 1x MG995 steering servo, open loop (decided 2026-10-01).
+* L298N + 2x Johnson motors on the rear axle, forward only
+* SN65HVD230 CAN module -> Raspberry Pi 4B + MCP2515 CAN HAT
+* 12 V / 2.2 A adapter -> INA260 -> buck (servos + VCU) and L298N
+
+NOT fitted: ADS1115, BTS7960, steering position feedback.
+
+===============================================================================
+## 1. U1 pin map — the master table
+===============================================================================
+
+GPIO  Label  Hdr pin  Function                    Goes to
+----  -----  -------  --------------------------  ------------------------------------------
+ 0    D0     35       RL_FB  rear-left flap fb     R3 10k <- J9 pin FB;  R7 10k + C2 100n to GND
+ 1    D1     34       RR_FB  rear-right flap fb    R2 10k <- J10 pin FB; R8 10k + C1 100n to GND
+ 2    D2     32       HALL_FR                     J12 pin 3
+ 3    D3     31       HALL_RL                     J11 pin 3
+ 4    D4      4       HALL_RR                     J3  pin 3
+ 5    D5      5       CAN_RX in FW 2.2.2 (*)      J1 pin 3 (module CRX when plugged straight in)
+ 6    D6      6       I2C SDA                     U2 SDA, J2 pin 5;  R10 4.7k to 3V3
+ 7    D7      7       I2C SCL                     U2 SCL, J2 pin 6;  R9 4.7k to 3V3
+ 8    D8     11       SERVO RR (flap, PWM)        J10 PWM;  R5 10k PULL-UP to 3V3 (strap pin)
+ 9    D9     12       OW_DATA  1-Wire             J4 pin 3, J6 pin 3;  R1 4.7k to 3V3 (BOOT strap)
+14    D14     9       HALL_FL                     J13 pin 3
+15    D15    10       CAN_TX in FW 2.2.2 (*)      J1 pin 4 (module CTX when plugged straight in)
+      (*) the SN65HVD230 module's header is VCC,GND,CRX,CTX, so plugged straight into J1 its RX/TX
+          are crossed vs the PCB labels. FW 2.2.2 swaps the pins (VCU_PROTO_CAN_SWAPPED 1).
+16    TXD     1       spare, not connected        (ROM prints boot text here)
+17    RXD     2       MOTOR_PWM 1 kHz             J16 pin 1;  R6 4.7k PULL-DOWN to GND
+18    D18    14       SERVO STEER (PWM)           J5 PWM
+19    D19    15       SERVO FL (flap, PWM)        J7 PWM
+20    G20    16       SERVO FR (flap, PWM)        J8 PWM
+21    G21    17       SERVO RL (flap, PWM)        J9 PWM
+22    D22    26       ENC_CLK (KY-040 CLK)        U3 CLK (R13 removed on PCB: direct)              [FW]
+23    D23    27       ENC_DT  (KY-040 DT)         U3 DT  (R12 removed on PCB: direct)              [FW]
+
+Power / control pins on U1:
+  3V3  (36)  OUTPUT of the module regulator -> +3.3V net (all sensors, CAN module)
+  VSYS (39)  5 V input <- VSYS_5v net <- J17 jumper <- +5V
+  EN   (37)  NOT CONNECTED. On this Pico-format board pin 37 most likely works like the
+             Pico's 3V3_EN (regulator enable, pulled up on the module). With R11 10k to the
+             3.3 V rail it was held low, so the regulator never started and the board
+             stayed off (found on the breadboard, 2026-10-01). Use the module's own
+             RESET button. If an external reset is ever needed: a button from RUN (30)
+             to GND, no resistor or capacitor.
+  VBUS (40)  not connected (USB 5 V, never back-feed it)
+  GND        23, 28, 33, 38 and 3, 8, 13 — all common
+  E1..E8, RUN (30): not connected
+
+GPIO22/23 on this board are ALSO wired to the on-board TCA9554 expander (with its
+own 10k pull-ups), whether or not you use it.
+- The encoder can share those lines safely: every device on them only pulls low.
+- The firmware must NEVER start I2C on GPIO22/23.
+- A mechanical-bounce edge case can, very rarely, cost one encoder count.
+  Removing the TCA9554 chip removes even that.
+
+Strapping pins (all safe as drawn):
+  GPIO8   R5 10k pull-up holds it HIGH at reset. The servo input is high-impedance.
+          The board's RGB LED shares this line, so expect a flicker.
+  GPIO9   R1 4.7k (1-Wire pull-up) holds BOOT high.
+  GPIO17  not a strap. It floats through reset, so R6 keeps the motor OFF.
+
+Still to confirm with a meter before fabrication: the SmartElex labels map to the
+GPIOs above (D22/D23 -> GPIO22/23, RXD -> GPIO17, TXD -> GPIO16, G20/G21 ->
+GPIO20/21).
+
+===============================================================================
+## 2. Sensors
+===============================================================================
+
+### U2 — MPU6050 (GY-521), I2C 0x68
+  1 VCC -> +3.3V      2 GND -> GND      3 SCL -> SCL (GPIO7)      4 SDA -> SDA (GPIO6)
+  7 AD0 -> GND  (address 0x68)          5 XDA, 6 XCL, 8 INT -> not connected
+  Mount it rigidly, near the car's centre of mass.
+
+### J2 + J14 — INA260 module, I2C 0x40
+J2, the 8-pin module header:
+  8 VCC -> +3.3V      7 GND -> GND      6 SCL -> SCL      5 SDA -> SDA
+  4 ALERT -> not connected
+  3 VBUS -> J14 pin 1      2 IN+ -> J14 pin 2      1 IN- -> J14 pin 3
+
+J14, the external power socket (the whole 12 V supply current flows through here):
+  pin 2 IN+   <- 12 V adapter +  (through an inline 3 A fuse)
+  pin 3 IN-   -> distribution node: buck IN+ AND the L298N 12 V terminal
+  pin 1 VBUS  must be tied to IN-. Otherwise it reads 0 V and the VCU latches FAULT.
+  >>> FIX: add a wire in the schematic from J2 pin 3 (VBUS) to J2 pin 1 (IN-), unless
+      the module already has its VBUS solder jumper closed. Check with a meter.
+  Current rating: 2.54 mm header pins are good for about 3 A. That is fine for the
+  2.2 A adapter. For a LiPo later, move the power path to the module's own screw
+  terminal. Make the IN+/IN- traces >= 1.5 mm wide.
+
+### J3, J11, J12, J13 — hall wheel-speed modules
+  pin 1 VCC -> +3.3V (NOT 5 V: the module pulls its output up to its own VCC)
+  pin 2 GND -> GND
+  pin 3 OUT -> see below
+
+  J13  FL -> D14 (GPIO14)
+  J12  FR -> D2  (GPIO2)
+  J11  RL -> D3  (GPIO3)
+  J3   RR -> D4  (GPIO4)
+
+  >>> FIX (cosmetic): name each connector by wheel in the schematic, so they can't
+      be swapped at assembly.
+  Check your module's header order: some are DO/GND/VCC, not VCC/GND/DO.
+  One magnet per wheel today. 2-4 on each rear wheel is recommended for the dyno
+  (then set CFG_WHEEL_PULSES_PER_REV). The tyre is ASSUMED 70 mm: measure it and
+  set it in vcu_logic.h, raspberry_pi/main.py and bridge.py.
+
+### J4, J6 — DS18B20 (one 1-Wire bus)
+  pin 1 VCC -> +3.3V      pin 2 GND -> GND      pin 3 TEMP_DATA -> OW_DATA (GPIO9)
+  R1 4.7k from OW_DATA to +3.3V (one resistor for the whole bus)
+  Assign roles on the console: `ds`, then `tempmap <battery_idx> <motor_idx>`, then
+  `cal save`.
+
+### U3 — KY-040 rotary encoder   [FW 2.2: supported — each detent = motor duty cap ±1 %]
+  CLK -> R13 1k -> D22 (GPIO22)
+  DT  -> R12 1k -> D23 (GPIO23)
+  SW  -> not connected (if you want the button later: GPIO16/TXD through 1k, to GND)
+  VCC -> +3.3V (NOT 5 V)      GND -> GND
+  The module has its own 10k pull-ups on CLK/DT. FW 2.2 counts it with a quadrature table in a pin-change ISR. Use it as a knob or trim input, not
+  as steering feedback: 20 detents is too coarse, and it's relative.
+
+===============================================================================
+## 3. Actuators
+===============================================================================
+
+### Servos — J5, J7, J8 (3-pin) and J9, J10 (4-pin)
+
+  >>> FIX: pin order. A servo plug is GND, V+, SIG, with V+ ALWAYS in the MIDDLE.
+      As drawn (VCC, PWM, GND and +5V, GND, PWM, FB), no plug orientation is safe.
+      Renumber the symbol pins to:
+        3-pin  J5, J7, J8 :  1 GND   2 +5V   3 PWM
+        4-pin  J9, J10    :  1 GND   2 +5V   3 PWM   4 FB
+      The servo's brown/black wire goes on pin 1. The MG996R feedback wire plugs
+      into pin 4 on its own.
+
+  >>> FIX: the servos currently have NO power. Their supply is the net label
+      "5V_IN", which appears nowhere else. J15's net is "+5V" (a pin NAME doesn't
+      make a net). Replace every "5V_IN" label with the +5V power symbol.
+
+  Conn  Channel     Servo           PWM            Feedback
+  ----  ----------  --------------  -------------  -------------------------------
+  J5    Steering    MG995           D18  GPIO18    none (open loop)
+  J7    Flap FL     SG90            D19  GPIO19    none (open loop)
+  J8    Flap FR     SG90            G20  GPIO20    none (open loop)
+  J9    Flap RL     MG996R          G21  GPIO21    pin 4 -> R3 10k -> D0 (GPIO0)
+  J10   Flap RR     MG996R          D8   GPIO8     pin 4 -> R2 10k -> D1 (GPIO1)
+
+  Feedback dividers (already on the schematic):
+    RL_FB --R3 10k--+--> GPIO0         RR_FB --R2 10k--+--> GPIO1
+                    R7 10k + C2 100n                   R8 10k + C1 100n
+                    to GND                             to GND
+  At a 5.2 V servo supply the tap stays under 2.7 V. Measure it at both ends of
+  travel before connecting to the MCU.
+
+  Servo set: MG995 steering + 2x MG996R (rear flaps, feedback) + 2x SG90 (front
+  flaps). Three metal-gear servos share the +5V rail: worst-case stall is about
+  8 A at 5 V, far beyond the 12 V / 2.2 A adapter, so the bulk capacitor below
+  is not optional. Calibrate the MG995's range with `pulse 0 <min> <max>`.
+
+  >>> FIX: add bulk capacitance on the +5V servo rail next to J9/J10:
+      C4 470-1000 uF, 10 V or higher, electrolytic, plus C5 100 nF.
+      Route +5V and GND from J15 to the servo headers as a wide pour (>= 2.5 mm).
+
+### J16 — motor signal to the L298N (forward only)
+  pin 1 MOTOR_PWM <- RXD (GPIO17) -> L298N ENA + ENB (tied together)
+  pin 2 GND                       -> L298N GND
+  R6 4.7k from MOTOR_PWM to GND   <- CRITICAL: keeps the motor off while the MCU resets
+
+  At the L298N, strapped by hand (no MCU wire):
+    ENA and ENB jumpers REMOVED (otherwise the PWM is ignored)
+    IN1 + IN3 -> L298N +5V pin
+    IN2 + IN4 -> GND
+    12 V terminal -> INA260 IN- node (so motor current is measured)
+    GND           -> common ground
+    OUT1/OUT2 -> motor 1      OUT3/OUT4 -> motor 2
+  If a wheel turns backwards, swap THAT motor's two output wires, never the IN straps.
+
+===============================================================================
+## 4. Communications
+===============================================================================
+
+### J1 — SN65HVD230 CAN module
+  1 3V3 -> +3.3V    2 GND -> GND    3 CAN_TX    4 CAN_RX     (as drawn on the PCB)
+  The real module (header VCC, GND, CRX, CTX) plugs in straight, so module CRX -> net CAN_TX
+  (socket 5) and module CTX -> net CAN_RX (socket 10). FW 2.2.2 handles this in firmware:
+  TX = GPIO15 / RX = GPIO5 on the C6, TX = GPIO16 / RX = GPIO17 on the classic ESP32 stand-in.
+  Next PCB revision: draw J1 to match the module's pin order.
+  Off-board:
+  - CANH/CANL go as a twisted pair to the Pi's CAN HAT, plus a GND wire to the HAT's G.
+  - 120 ohm termination only at the two ends: expect ~60 ohm across H/L with power off.
+
+===============================================================================
+## 5. Power
+===============================================================================
+
+  12 V + --[3 A fuse]--> J14 IN+ ==INA260== J14 IN- --+--> buck IN+
+                                                      +--> L298N 12 V
+  12 V - --------------------------------------------------> common GND (star point)
+
+  buck OUT+ (set 5.0-5.2 V) --> J15 pin 1 (+5V) --+--> servo rail (J5, J7, J8, J9, J10)
+                                                  +--> J17 jumper --> VSYS (U1 pin 39)
+  buck OUT- --> J15 pin 2 (GND)
+
+  - Buck voltage: 5.0-5.2 V, NOT 6 V, because VSYS shares this rail. Both SG90 and
+    MG996R run fine at 5 V. Buck rating: 5 A or more (two MG996R can stall at ~2.5 A each).
+  - J17: before fitting it with USB also plugged in, check the board has a diode
+    from VBUS to VSYS. If unsure, remove J17 while the USB cable is connected.
+  - Better, if you have a second small buck: feed VSYS from it, so a servo stall
+    can't brown out the VCU.
+  - The Raspberry Pi gets its OWN supply.
+  - Common ground must join: adapter -, buck, L298N, all servos, U1, INA260, the
+    CAN module, the Pi's CAN HAT G terminal and the Pi.
+
+  On the 12 V / 2.2 A adapter the VCU derates motor duty above 2.0 A (key 21), and
+  the rear flaps move 150 ms after the fronts so four servos never start together.
+
+===============================================================================
+## 6. Board passives (as on the schematic, plus the fixes)
+===============================================================================
+
+  Ref   Value         Purpose
+  ----  ------------  -------------------------------------------------------
+  R1    4.7k          1-Wire pull-up, OW_DATA (GPIO9) to 3V3
+  R2    10k           RR_FB divider, top    (J10 FB -> GPIO1)
+  R8    10k           RR_FB divider, bottom
+  C1    100 nF        RR_FB filter
+  R3    10k           RL_FB divider, top    (J9 FB -> GPIO0)
+  R7    10k           RL_FB divider, bottom
+  C2    100 nF        RL_FB filter
+  R5    10k           GPIO8 (servo RR) PULL-UP: boot strap high
+  R6    4.7k          GPIO17 (MOTOR_PWM) PULL-DOWN: motor off at reset
+  R9    4.7k          SCL pull-up
+  R10   4.7k          SDA pull-up
+  R12   1k            encoder DT series  (-> GPIO23)
+  R13   1k            encoder CLK series (-> GPIO22)
+  TP1-6 test points   3V3, 5V, GND, SDA, SCL, OW_DATA
+  C4    470-1000 uF   >>> ADD: servo rail bulk
+  C5    100 nF        >>> ADD: servo rail decoupling
+  (R4 is unused, so there is a gap in the numbering. That's harmless.)
+
+===============================================================================
+## 7. Raspberry Pi, LoRa and ground station
+===============================================================================
+
+### Raspberry Pi 4B — power
+  5 V / 3 A USB-C supply of its OWN (never the car's buck).
+  Pi GND joins the common ground through the CAN HAT's G terminal.
+
+### MCP2515 2-CH CAN HAT (Waveshare) — plugs onto the 40-pin header
+  Pins the HAT uses (keep them free of anything else):
+    SPI0 MOSI GPIO10 (pin 19)   MISO GPIO9 (pin 21)   SCLK GPIO11 (pin 23)
+    CE0 GPIO8 (pin 24)          CE1 GPIO7 (pin 26)
+    INT GPIO23 (pin 16)         INT GPIO25 (pin 22)
+    5V, 3V3, GND
+  /boot/firmware/config.txt, under [all]:
+    dtparam=spi=on
+    dtoverlay=mcp2515-can1,oscillator=16000000,interrupt=25
+    dtoverlay=mcp2515-can0,oscillator=16000000,interrupt=23
+    dtoverlay=spi1-1cs
+  READ the crystal on your HAT: if it says 8.000 or 12.000, change oscillator=.
+  CAN bus, VCU <-> HAT (either CAN channel; can_up.sh tells you which canX it is):
+    VCU module CANH -> HAT H       VCU module CANL -> HAT L  (twisted pair)
+    VCU GND         -> HAT G       <- mandatory
+    120 ohm at each end only: expect ~60 ohm across H-L with power off.
+
+### Ra-02 (SX1278) on the Pi — SPI1
+  Wire it to the HAT's pass-through header (or use a stacking header).
+  Ra-02 pin    Pi GPIO    Header pin
+  ---------    -------    ----------
+  3.3V         3V3        1 (or 17)      NEVER 5 V
+  GND          GND        6 (and a second one, e.g. 9)
+  NSS          GPIO18     12             SPI1 CE0 -> /dev/spidev1.0
+  SCK          GPIO21     40             SPI1 SCLK
+  MOSI         GPIO20     38             SPI1 MOSI
+  MISO         GPIO19     35             SPI1 MISO
+  RESET        GPIO17     11
+  DIO0         GPIO27     13             RxDone/TxDone
+  DIO1-DIO5    —          —              not connected
+  The Ra-02 has a 1.27 mm pad pitch: use an adapter board, or short soldered
+  leads. Keep the wires under 15 cm. The code runs SPI at 1 MHz.
+  Gateway: python3 main.py --ground-link lora --lora-backend sx1278 --can-channel canX
+  On start it checks RegVersion (0x42 must read 0x12). A miswired radio stops it
+  with a wiring message.
+
+### Ra-02 (SX1278) on the ground ESP32 (classic ESP32 DevKit, VSPI)
+  Ra-02 pin    ESP32 GPIO
+  ---------    ----------
+  3.3V         3V3
+  GND          GND
+  NSS          5
+  SCK          18
+  MOSI         23
+  MISO         19
+  RESET        14
+  DIO0         26
+  DIO1-DIO5    not connected
+  ESP32 USB -> laptop 1. Run bridge.py --radio serial --serial-port COMx.
+  Close the Serial Monitor first.
+
+### Radio settings (must match on both ends — already set in the code)
+  433.0 MHz · SF7 · BW 250 kHz · CR 4/5 · sync word 0x12 · preamble 8 · 10 dBm
+  Fit 433 MHz antennas on BOTH radios before power-up. Transmitting without an
+  antenna can damage the PA.
+
+### ESP32-CAM
+  5 V and GND only, with 470-1000 uF across its supply. It has its own Wi-Fi
+  (SSID CTRL). Paste the http://<ip>:81/stream it prints into the dashboard's Camera
+  page. Only the backend may open that stream.
+
+===============================================================================
+## 8. Firmware for this board   (FW 2.1.1-stage2d, 2026-10-01)
+===============================================================================
+
+DONE in FW 2.1.1 (servo set: MG995 steering, SG90 front flaps, MG996R + feedback rear):
+  1. Feedback: VCU_FB_WIRED_MASK 0x18; GPIO0 -> LR (servo 3), GPIO1 -> RR (servo 4).
+  2. Per-model default pulse ranges (steering MG995 1150-1850 us for +/-30 deg;
+     flaps 1000-1500 us for 0-45 deg). Bench-tune with `pulse <id> <min> <max>`.
+  3. Servo calibration now stored under new NVS keys (sv0..sv4): the Stage 2c `cal`
+     data (taken with MG996R on the FRONT channels) is ignored, and the boot log says so.
+  4. CAN 0x150: open-loop flaps report their command instead of 0, so the dashboard
+     shows real angles for all four flaps.
+  5. Backend and dashboard: flap tracking and the flap diagram use the rear pair.
+  After flashing, re-calibrate (linkages off, VCU in IDLE):
+       pulse 0 <min> <max>      (MG995, so +/-30 deg does not hit a stop)
+       servo 3 0 -> cal 3 min   servo 3 45 -> cal 3 max
+       servo 4 0 -> cal 4 min   servo 4 45 -> cal 4 max   cal show   cal save   bench off
+
+FW 2.2:
+  - Encoder: KY-040 on GPIO22/23, plain inputs (never I2C on those pins), quadrature ISR.
+    One detent = motor duty cap +/-1 %. Console `knob` shows the count.
+  - Pins and the motor driver now come from vcu_hw_profile.h. This folder is built with
+    VCU_HW_PROFILE_PROTOTYPE (L298N 1 kHz, A3144 halls, no kill switch, FL flap on GPIO19).
+
+Build flags otherwise unchanged:
+  VCU_TRANSPORT_TWAI 1 · VCU_SENSORS_REAL 1 · VCU_HAVE_ADS1115 0 · VCU_HAVE_INA260 1
+  VCU_FB_WIRED_MASK 0x18 · VCU_MOTOR_FORWARD_ONLY 1
+Arduino IDE: "ESP32C6 Dev Module", USB CDC On Boot ENABLED.
+
+===============================================================================
+## 9. Pre-power checklist
+===============================================================================
+[ ] Schematic fixes done: servo pin order, 5V_IN -> +5V, VBUS-IN- link, C4/C5
+[ ] SmartElex labels checked with a meter against the GPIO numbers in section 1
+[ ] No short between 12 V, +5V, +3.3V and GND (meter, power off)
+[ ] Buck set to 5.0-5.2 V with NO load before any servo or J17 is fitted
+[ ] INA260 VBUS reads the same as IN- once powered
+[ ] Feedback taps (GPIO0/GPIO1) below 3.3 V at both ends of servo travel
+[ ] ESP32 held in reset (module RESET button held): GPIO17 = 0 V, GPIO8 = 3.3 V, GPIO9 = 3.3 V
+[ ] Pin 37 (EN) has nothing connected to it
+[ ] L298N ENA/ENB jumpers removed, IN straps fitted
+[ ] Halls, DS18B20s and the encoder powered from 3.3 V, not 5 V
+[ ] ~60 ohm across CANH/CANL with power off; VCU GND wired to the HAT's G
+[ ] Antennas on both Ra-02s
+[ ] Car on the rollers, nothing touching the flaps or the steering
+[ ] Firmware updated for rear feedback (section 8) before the first run

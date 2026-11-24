@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" width="960" height="640" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a5361"/>
+    </marker>
+    <style>
+      .box{fill:#ffffff;stroke:#c9d0d9;stroke-width:1.5}
+      .t{font-size:17px;font-weight:700;fill:#15191f}
+      .s{font-size:13px;fill:#4a5361}
+      .k{font-size:12px;fill:#4a5361;font-weight:600;letter-spacing:.06em}
+      .l{font-size:12.5px;fill:#15191f}
+      .link{stroke:#4a5361;stroke-width:1.8;fill:none}
+      .tag{font-size:12.5px;fill:#4a5361;font-style:italic}
+    </style>
+  </defs>
+  <rect width="960" height="640" fill="#f6f7f9"/>
+
+  <!-- tier 1 : engineer station -->
+  <rect class="box" x="230" y="24" width="500" height="118" rx="10"/>
+  <text class="k" x="250" y="50">RACING ENGINEER STATION · LAPTOP</text>
+  <text class="t" x="250" y="76">FastAPI backend + SQLite · Next.js dashboard</text>
+  <text class="s" x="250" y="99">Rule-based AI engineer and digital twin — recommends only</text>
+  <text class="s" x="250" y="120">Ground radio: classic ESP32 + Ra-02 SX1278 on USB (bridge.py)</text>
+
+  <!-- camera -->
+  <rect class="box" x="770" y="40" width="168" height="86" rx="10"/>
+  <text class="k" x="786" y="64">ON THE CAR</text>
+  <text class="t" x="786" y="88">ESP32-CAM</text>
+  <text class="s" x="786" y="109">Wi-Fi MJPEG stream</text>
+  <path class="link" d="M770 83 H734" marker-end="url(#a)"/>
+
+  <!-- link 1 -->
+  <path class="link" d="M462 146 V196" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text class="tag" x="476" y="168">LoRa 433 MHz (Mode B)  or  Wi-Fi (Mode A)</text>
+  <text class="tag" x="476" y="186">telemetry up · requests down</text>
+
+  <!-- tier 2 : pi -->
+  <rect class="box" x="230" y="200" width="500" height="92" rx="10"/>
+  <text class="k" x="250" y="226">GATEWAY · RASPBERRY PI 4B</text>
+  <text class="t" x="250" y="252">Bridges CAN ↔ ground link, logs every frame to CSV</text>
+  <text class="s" x="250" y="274">Computes nothing that controls the car</text>
+
+  <!-- link 2 -->
+  <path class="link" d="M462 296 V346" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text class="tag" x="476" y="326">CAN 500 kbit/s (MCP2515 HAT ↔ transceiver)</text>
+
+  <!-- tier 3 : VCU -->
+  <rect x="230" y="350" width="500" height="118" rx="10" fill="#fff4f2" stroke="#d23c2a" stroke-width="2"/>
+  <text class="k" x="250" y="376" fill="#d23c2a" style="fill:#d23c2a">VEHICLE CONTROL UNIT · ESP32-C6 (RISC-V)</text>
+  <text class="t" x="250" y="402">Sole actuator authority · FreeRTOS tasks</text>
+  <text class="s" x="250" y="424">Checks every request for confidence, age and range — then decides</text>
+  <text class="s" x="250" y="446">Faults, E-STOP latch, deadman on the ground link, flap law + DRS</text>
+
+  <!-- sensors -->
+  <rect class="box" x="22" y="498" width="440" height="122" rx="10"/>
+  <text class="k" x="42" y="524">SENSORS</text>
+  <text class="l" x="42" y="548">MPU6050 IMU · INA260 power monitor</text>
+  <text class="l" x="42" y="570">2 × DS18B20 temperature · wheel-speed halls</text>
+  <text class="l" x="42" y="592">KY-040 knob (steering input) · rear-flap pot feedback</text>
+  <path class="link" d="M300 494 V472" marker-end="url(#a)"/>
+
+  <!-- actuators -->
+  <rect class="box" x="498" y="498" width="440" height="122" rx="10"/>
+  <text class="k" x="518" y="524">ACTUATORS</text>
+  <text class="l" x="518" y="548">Steering servo (MG996R, 180°)</text>
+  <text class="l" x="518" y="570">4 flap servos: 2 × MG996R rear, 2 × SG90 front</text>
+  <text class="l" x="518" y="592">2 × Johnson geared motors via L298N (rear axle)</text>
+  <path class="link" d="M640 472 V494" marker-end="url(#a)"/>
+</svg>

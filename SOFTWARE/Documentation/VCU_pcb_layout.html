@@ -1,0 +1,519 @@
+<title>F1 VCU PCB Layout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: EDA-style board viewer. A dark canvas (always dark, like KiCad) shows the routed 2-layer board with the off-board harness drawn around it; a side panel explains whatever net is selected. Tables for wiring, netlist and BOM follow. */
+:root {
+  --bg:#f2f4f6; --surface:#ffffff; --surface2:#e8ecf0; --ink:#14181d; --muted:#5a6470; --line:#d3d9df; --accent:#0b5d7d;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  /* canvas (EDA look, same in both themes) */
+  --cv:#0a0e13; --pcb:#10261b; --edge:#e0c65a; --tcu:#d8483b; --bcu:#3f80da; --padc:#d6ad45; --silk:#eef0f2; --drill:#0a0e13; --ext:#1a2129; --extline:#3a4652; --exttext:#dfe5ea; --extmuted:#93a0ad;
+  /* net classes (on the dark canvas) */
+  --v12:#ff5d52; --v5:#ffa040; --v33:#e9c53b; --gnd:#aeb6bf; --pwm:#5f95ff; --fb:#bf8cf5; --dig:#2fd1bd; --ow:#d39a5c; --i2c:#57d36a; --can:#f566bb; --spi:#39c6ea; --mot:#ef7f45; --usb:#9aa5b1; --ctl:#9aa5b1; --nc:#59636d;
+  --warnbg:#fff4de; --warnfg:#7a4a00;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#0e1216; --surface:#161b20; --surface2:#1c2228; --ink:#e7ebef; --muted:#9aa5b1; --line:#2c353d; --accent:#5cc0e6;
+  --warnbg:#33280f; --warnfg:#ffd27a; color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#0e1216; --surface:#161b20; --surface2:#1c2228; --ink:#e7ebef; --muted:#9aa5b1; --line:#2c353d; --accent:#5cc0e6;
+  --warnbg:#33280f; --warnfg:#ffd27a; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { background:var(--bg); color:var(--ink); font-family:var(--body); font-size:15px; line-height:1.5; }
+.wrap { max-width:1400px; margin:0 auto; padding-inline:16px; padding-block:22px 60px; }
+h1,h2,h3 { font-family:var(--display); margin:0; line-height:1.1; text-wrap:balance; }
+h1 { font-size:clamp(32px,4.6vw,48px); }
+h2 { font-size:26px; } h3 { font-size:19px; }
+p { margin:0; }
+.eyebrow { font:500 12px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+header.top { display:grid; gap:10px; padding-bottom:16px; border-bottom:2px solid var(--ink); }
+.lede { color:var(--muted); max-width:78ch; }
+.facts { display:flex; flex-wrap:wrap; gap:8px; }
+.fact { font:500 12.5px var(--mono); border:1px solid var(--line); background:var(--surface); border-radius:6px; padding:3px 9px; }
+.fact b { font-weight:600; }
+.note { background:var(--warnbg); color:var(--warnfg); border-radius:8px; padding:10px 14px; font-size:14px; max-width:100%; }
+
+.toolbar { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin-top:18px; }
+.tgroup { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tgroup > span { font:500 12px var(--mono); color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-right:2px; }
+.tg { font:500 13px var(--body); color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:4px 11px; cursor:pointer; display:inline-flex; gap:7px; align-items:center; }
+.tg i { width:14px; height:4px; border-radius:2px; background:var(--c,var(--muted)); display:block; }
+.tg[aria-pressed="false"] { opacity:.5; }
+.tg:hover { border-color:var(--accent); }
+button:focus-visible, select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+select { font:500 13px var(--body); color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:4px 8px; max-width:100%; }
+
+.viewer { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:14px; margin-top:12px; align-items:start; }
+@media (max-width:980px) { .viewer { grid-template-columns:minmax(0,1fr); } }
+.canvaswrap { position:relative; background:var(--cv); border-radius:10px; overflow:hidden; border:1px solid #000; touch-action:none; min-width:0; }
+#cv { display:block; width:100%; height:min(78vh,860px); cursor:grab; user-select:none; }
+#cv.drag { cursor:grabbing; }
+.zoom { position:absolute; right:10px; top:10px; display:flex; flex-direction:column; gap:6px; }
+.zoom button { width:34px; height:34px; border-radius:8px; border:1px solid #33404c; background:#141b22; color:#e6ebf0; font:600 16px var(--mono); cursor:pointer; }
+.zoom button.w { width:auto; padding:0 8px; font-size:11.5px; }
+.zoom button:hover { border-color:#5cc0e6; }
+.hint { position:absolute; left:12px; bottom:10px; font:500 11.5px var(--mono); color:#8fa0b0; pointer-events:none; }
+.panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; display:grid; gap:10px; position:sticky; top:12px; max-height:calc(100vh - 24px); overflow:auto; min-width:0; }
+.panel .nn { font:600 20px var(--mono); overflow-wrap:anywhere; }
+.chip { display:inline-flex; align-items:center; gap:6px; font:500 12px var(--mono); border:1px solid var(--line); border-radius:999px; padding:2px 9px; }
+.chip i { width:12px; height:4px; border-radius:2px; background:var(--c); display:block; }
+.panel ul { margin:0; padding-left:18px; font:400 13px var(--mono); display:grid; gap:2px; }
+.panel .muted { color:var(--muted); font-size:13.5px; }
+.panel .kbd { font:500 12px var(--mono); color:var(--muted); }
+
+section { margin-top:40px; display:grid; gap:14px; }
+.sechead { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:6px 18px; }
+.sechead p { color:var(--muted); font-size:14px; max-width:76ch; }
+.tablewrap { overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:10px; }
+table { border-collapse:collapse; width:100%; font-size:13.5px; }
+th, td { text-align:left; padding:7px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font:600 12px var(--mono); text-transform:uppercase; letter-spacing:.05em; color:var(--muted); background:var(--surface2); position:sticky; top:0; }
+td.m { font-family:var(--mono); font-size:12.5px; }
+td.n { font-variant-numeric:tabular-nums; font-family:var(--mono); font-size:12.5px; white-space:nowrap; }
+tr[data-net] { cursor:pointer; } tr[data-net]:hover td { background:var(--surface2); }
+.dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--c); margin-right:6px; vertical-align:-1px; border:1px solid rgba(0,0,0,.25); }
+.cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr)); gap:14px; align-items:start; }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; display:grid; gap:8px; min-width:0; }
+.card ul { margin:0; padding-left:18px; display:grid; gap:5px; font-size:14px; }
+.card li span { color:var(--muted); }
+footer { margin-top:44px; color:var(--muted); font-size:13px; border-top:1px solid var(--line); padding-top:12px; }
+
+/* SVG */
+svg text { font-family:var(--body); }
+.hide-top .L0, .hide-bot .L1, .hide-pour .pour, .hide-silk .silk, .hide-names .pname, .hide-harness .harness, .hide-ext .extc { display:none; }
+.focus [data-net] { opacity:.13; }
+.focus [data-net].hl { opacity:1; }
+.focus .harness path[data-net].hl { stroke-width:calc(var(--sw) * 2.2); }
+.focus .trace.hl { filter:drop-shadow(0 0 .35px #fff); }
+[data-net] { transition:opacity .12s; }
+.pad, .trace, .wire, .xpin { cursor:pointer; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">VCU carrier board · 2-layer · routed from your KiCad schematic with the fixes applied</span>
+    <h1>F1 VCU PCB Layout</h1>
+    <p class="lede">A complete, routed layout for the VCU board, with every off-board part wired to the pin it belongs on. Every pad, resistor, capacitor and module header is drawn at its real position. The routing uses 45° traces on two copper layers and a ground pour. Hover over or tap any pad, trace or wire to follow its net through the board and out to the adapter, buck, L298N, sensors, servos, CAN bus, Pi and ground station.</p>
+    <div class="facts" id="facts"></div>
+    <div class="note"><b>Before you copy this into KiCad:</b> the U1 pin numbers follow your schematic symbol, with pin 1 marked by the square pad, so make sure your footprint matches. Check the INA260 and CAN module header orders against your actual modules. The layout also includes the fixes from the review: servo headers are GND, +5V, PWM(, FB); the <code>5V_IN</code> label is replaced by +5V; INA260 VBUS is tied to IN−; C4/C5 are added on the servo rail; and J15 has moved next to J14 so all the power enters at one edge.</div>
+  </header>
+
+  <div class="toolbar" role="toolbar" aria-label="View controls">
+    <div class="tgroup" id="layers"><span>Show</span></div>
+    <div class="tgroup"><span>Traces</span>
+      <button class="tg" id="modeLayer" aria-pressed="true" type="button"><i style="--c:var(--tcu)"></i>Layer colours</button>
+      <button class="tg" id="modeNet" aria-pressed="false" type="button"><i style="--c:var(--v5)"></i>Net colours</button>
+    </div>
+    <div class="tgroup"><span>Net</span><select id="netsel" aria-label="Select a net"><option value="">All nets</option></select></div>
+  </div>
+
+  <div class="viewer">
+    <div class="canvaswrap" id="cwrap">
+      <svg id="cv" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Routed VCU board and wiring harness"></svg>
+      <div class="zoom">
+        <button type="button" id="zin" aria-label="Zoom in">+</button>
+        <button type="button" id="zout" aria-label="Zoom out">−</button>
+        <button type="button" class="w" id="fitAll">ALL</button>
+        <button type="button" class="w" id="fitBoard">PCB</button>
+      </div>
+      <div class="hint">drag to pan · wheel / pinch to zoom · tap a net</div>
+    </div>
+    <aside class="panel" id="info" aria-live="polite"></aside>
+  </div>
+
+  <section>
+    <div class="sechead"><h2>Off-board wiring</h2><p>Every wire that leaves the board or connects two off-board parts. Tap a row to show it on the drawing.</p></div>
+    <div class="tablewrap" style="max-height:520px"><table id="wtab"><thead><tr><th>Net</th><th>From</th><th>To</th><th>Notes</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Board netlist</h2><p>Every copper connection on the PCB, grouped by net, including every resistor and capacitor pin.</p></div>
+    <div class="tablewrap" style="max-height:520px"><table id="ntab"><thead><tr><th>Net</th><th>Width</th><th>Connects</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Parts and placement</h2><p>X and Y are the part centre in millimetres, measured from the board's top-left corner. Use them to place the footprints in KiCad, then follow the drawing for the routing.</p></div>
+    <div class="tablewrap" style="max-height:520px"><table id="btab"><thead><tr><th>Ref</th><th>Value</th><th>Footprint</th><th>X mm</th><th>Y mm</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section>
+    <div class="cols">
+      <div class="card"><h3>Routing rules used</h3><ul id="rules"></ul></div>
+      <div class="card"><h3>Why it's placed this way</h3><ul>
+        <li><b>Power enters at one edge.</b> <span>J14 (12 V through the INA260), J15 (5 V from the buck) and J16 (motor PWM) sit together on the bottom edge, so the heavy wiring stays in one corner of the car.</span></li>
+        <li><b>No external reset circuit.</b> <span>Pin 37 (EN) is left unconnected. On this board it most likely enables the regulator, and the old R11/C3/SW1 circuit held it low so the board never powered up. The module's own RESET button does the job.</span></li>
+        <li><b>Bulk capacitor at the load.</b> <span>C4/C5 sit beside the two MG996R headers at the top, where the stall current is drawn.</span></li>
+        <li><b>Dividers near the ADC.</b> <span>R2/R3 sit by the servo headers, so the raw ~5 V wiper voltage never travels far. R7/R8 and the filter caps C1/C2 sit next to GPIO0/1.</span></li>
+        <li><b>Headers follow the pin order.</b> <span>The servo headers run left to right in the same order as GPIO21→18, so their PWM traces nest without crossing. Halls, the encoder and the feedback go on the left because their pins are on U1's left column. I²C, CAN, 1-Wire and the right-hand halls go on the right.</span></li>
+        <li><b>Solid ground.</b> <span>The bottom layer is almost all ground pour, and bottom traces are used only for crossings. Every GND pad is through-hole, so it lands on the pour directly.</span></li>
+      </ul></div>
+    </div>
+  </section>
+
+  <footer>Placement and routing were generated by a two-layer grid router from the project's KiCad schematic (30 Sep 2026) with the review fixes applied. The off-board pinouts come from the Stage 2d firmware, <code>raspberry_pi/main.py</code> and <code>ground_radio_bridge.ino</code>. Treat it as a routing guide: run KiCad's DRC on your own copy before ordering.</footer>
+</div>
+
+<script>
+const DATA = {"board":{"W":104,"H":82,"pads":[{"ref":"U1","pin":"21","name":"E5","x":40,"y":34,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"22","name":"E4","x":40,"y":36,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"23","name":"GND","x":40,"y":38,"net":"GND","shape":"circle","d":1.8},{"ref":"U1","pin":"24","name":"E3","x":40,"y":40,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"25","name":"E2","x":40,"y":42,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"26","name":"D22","x":40,"y":44,"net":"ENC_CLK","shape":"circle","d":1.8},{"ref":"U1","pin":"27","name":"D23","x":40,"y":46,"net":"ENC_DT","shape":"circle","d":1.8},{"ref":"U1","pin":"28","name":"GND","x":40,"y":48,"net":"GND","shape":"circle","d":1.8},{"ref":"U1","pin":"29","name":"E1","x":40,"y":50,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"30","name":"RUN","x":40,"y":52,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"31","name":"D3","x":40,"y":54,"net":"HALL_RL","shape":"circle","d":1.8},{"ref":"U1","pin":"32","name":"D2","x":40,"y":56,"net":"HALL_FR","shape":"circle","d":1.8},{"ref":"U1","pin":"33","name":"GND","x":40,"y":58,"net":"GND","shape":"circle","d":1.8},{"ref":"U1","pin":"34","name":"D1","x":40,"y":60,"net":"RR_FB","shape":"circle","d":1.8},{"ref":"U1","pin":"35","name":"D0","x":40,"y":62,"net":"RL_FB","shape":"circle","d":1.8},{"ref":"U1","pin":"36","name":"3V3","x":40,"y":64,"net":"+3V3","shape":"circle","d":1.8},{"ref":"U1","pin":"37","name":"EN","x":40,"y":66,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"38","name":"GND","x":40,"y":68,"net":"GND","shape":"circle","d":1.8},{"ref":"U1","pin":"39","name":"VSYS","x":40,"y":70,"net":"VSYS","shape":"circle","d":1.8},{"ref":"U1","pin":"40","name":"VBUS","x":40,"y":72,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"20","name":"E6","x":54,"y":34,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"19","name":"E7","x":54,"y":36,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"18","name":"E8","x":54,"y":38,"net":"NC","shape":"circle","d":1.8},{"ref":"U1","pin":"17","name":"G21","x":54,"y":40,"net":"PWM_RL","shape":"circle","d":1.8},{"ref":"U1","pin":"16","name":"G20","x":54,"y":42,"net":"PWM_FR","shape":"circle","d":1.8},{"ref":"U1","pin":"15","name":"D19","x":54,"y":44,"net":"PWM_FL","shape":"circle","d":1.8},{"ref":"U1","pin":"14","name":"D18","x":54,"y":46,"net":"PWM_STEER","shape":"circle","d":1.8},{"ref":"U1","pin":"13","name":"GND","x":54,"y":48,"net":"GND","shape":"circle","d":1.8},{"ref":"U1","pin":"12","name":"D9","x":54,"y":50,"net":"OW_DATA","shape":"circle","d":1.8},{"ref":"U1","pin":"11","name":"D8","x":54,"y":52,"net":"PWM_RR","shape":"circle","d":1.8},{"ref":"U1","pin":"10","name":"D15","x":54,"y":54,"net":"CAN_RX","shape":"circle","d":1.8},{"ref":"U1","pin":"9","name":"D14","x":54,"y":56,"net":"HALL_FL","shape":"circle","d":1.8},{"ref":"U1","pin":"8","name":"GND","x":54,"y":58,"net":"GND","shape":"circle","d":1.8},{"ref":"U1","pin":"7","name":"D7","x":54,"y":60,"net":"SCL","shape":"circle","d":1.8},{"ref":"U1","pin":"6","name":"D6","x":54,"y":62,"net":"SDA","shape":"circle","d":1.8},{"ref":"U1","pin":"5","name":"D5","x":54,"y":64,"net":"CAN_TX","shape":"circle","d":1.8},{"ref":"U1","pin":"4","name":"D4","x":54,"y":66,"net":"HALL_RR","shape":"circle","d":1.8},{"ref":"U1","pin":"3","name":"GND","x":54,"y":68,"net":"GND","shape":"circle","d":1.8},{"ref":"U1","pin":"2","name":"RXD","x":54,"y":70,"net":"MOTOR_PWM","shape":"circle","d":1.8},{"ref":"U1","pin":"1","name":"TXD","x":54,"y":72,"net":"NC","shape":"rect","d":1.8},{"ref":"J15","pin":"1","name":"+5V","x":92,"y":80,"net":"+5V","shape":"rect","d":1.8},{"ref":"J15","pin":"2","name":"GND","x":94,"y":80,"net":"GND","shape":"circle","d":1.8},{"ref":"J10","pin":"1","name":"GND","x":9,"y":3,"net":"GND","shape":"rect","d":1.8},{"ref":"J10","pin":"2","name":"+5V","x":11,"y":3,"net":"+5V","shape":"circle","d":1.8},{"ref":"J10","pin":"3","name":"PWM","x":13,"y":3,"net":"PWM_RR","shape":"circle","d":1.8},{"ref":"J10","pin":"4","name":"FB","x":15,"y":3,"net":"FBRAW_RR","shape":"circle","d":1.8},{"ref":"J9","pin":"1","name":"GND","x":19,"y":3,"net":"GND","shape":"rect","d":1.8},{"ref":"J9","pin":"2","name":"+5V","x":21,"y":3,"net":"+5V","shape":"circle","d":1.8},{"ref":"J9","pin":"3","name":"PWM","x":23,"y":3,"net":"PWM_RL","shape":"circle","d":1.8},{"ref":"J9","pin":"4","name":"FB","x":25,"y":3,"net":"FBRAW_RL","shape":"circle","d":1.8},{"ref":"C4","pin":"1","name":"1","x":5,"y":9,"net":"+5V","shape":"circle","d":2.0},{"ref":"C4","pin":"2","name":"2","x":9,"y":9,"net":"GND","shape":"circle","d":2.0},{"ref":"C5","pin":"1","name":"1","x":3,"y":15,"net":"+5V","shape":"circle","d":1.6},{"ref":"C5","pin":"2","name":"2","x":7,"y":15,"net":"GND","shape":"circle","d":1.6},{"ref":"R2","pin":"1","name":"1","x":15,"y":6.5,"net":"FBRAW_RR","shape":"circle","d":1.6},{"ref":"R2","pin":"2","name":"2","x":15,"y":12.5,"net":"RR_FB","shape":"circle","d":1.6},{"ref":"R3","pin":"1","name":"1","x":25,"y":6.5,"net":"FBRAW_RL","shape":"circle","d":1.6},{"ref":"R3","pin":"2","name":"2","x":25,"y":12.5,"net":"RL_FB","shape":"circle","d":1.6},{"ref":"J17","pin":"1","name":"+5V","x":32,"y":76,"net":"+5V","shape":"rect","d":1.8},{"ref":"J17","pin":"2","name":"VSYS","x":34,"y":76,"net":"VSYS","shape":"circle","d":1.8},{"ref":"TP2","pin":"1","name":"5V","x":29.5,"y":6,"net":"+5V","shape":"tp","d":2.0},{"ref":"U3","pin":"1","name":"CLK","x":3,"y":19,"net":"ENC_CLK_RAW","shape":"rect","d":1.8},{"ref":"U3","pin":"2","name":"DT","x":3,"y":21,"net":"ENC_DT_RAW","shape":"circle","d":1.8},{"ref":"U3","pin":"3","name":"SW","x":3,"y":23,"net":"NC","shape":"circle","d":1.8},{"ref":"U3","pin":"4","name":"+","x":3,"y":25,"net":"+3V3","shape":"circle","d":1.8},{"ref":"U3","pin":"5","name":"GND","x":3,"y":27,"net":"GND","shape":"circle","d":1.8},{"ref":"R13","pin":"1","name":"1","x":23,"y":38,"net":"ENC_CLK_RAW","shape":"circle","d":1.6},{"ref":"R13","pin":"2","name":"2","x":29,"y":38,"net":"ENC_CLK","shape":"circle","d":1.6},{"ref":"R12","pin":"1","name":"1","x":23,"y":41,"net":"ENC_DT_RAW","shape":"circle","d":1.6},{"ref":"R12","pin":"2","name":"2","x":29,"y":41,"net":"ENC_DT","shape":"circle","d":1.6},{"ref":"J11","pin":"1","name":"VCC","x":3,"y":40,"net":"+3V3","shape":"rect","d":1.8},{"ref":"J11","pin":"2","name":"GND","x":3,"y":42,"net":"GND","shape":"circle","d":1.8},{"ref":"J11","pin":"3","name":"OUT","x":3,"y":44,"net":"HALL_RL","shape":"circle","d":1.8},{"ref":"J12","pin":"1","name":"VCC","x":3,"y":49,"net":"+3V3","shape":"rect","d":1.8},{"ref":"J12","pin":"2","name":"GND","x":3,"y":51,"net":"GND","shape":"circle","d":1.8},{"ref":"J12","pin":"3","name":"OUT","x":3,"y":53,"net":"HALL_FR","shape":"circle","d":1.8},{"ref":"R8","pin":"1","name":"1","x":32,"y":59,"net":"RR_FB","shape":"circle","d":1.6},{"ref":"R8","pin":"2","name":"2","x":26,"y":59,"net":"GND","shape":"circle","d":1.6},{"ref":"C1","pin":"1","name":"1","x":33,"y":56.5,"net":"RR_FB","shape":"circle","d":1.6},{"ref":"C1","pin":"2","name":"2","x":29,"y":56.5,"net":"GND","shape":"circle","d":1.6},{"ref":"R7","pin":"1","name":"1","x":32,"y":62.5,"net":"RL_FB","shape":"circle","d":1.6},{"ref":"R7","pin":"2","name":"2","x":26,"y":62.5,"net":"GND","shape":"circle","d":1.6},{"ref":"C2","pin":"1","name":"1","x":33,"y":65,"net":"RL_FB","shape":"circle","d":1.6},{"ref":"C2","pin":"2","name":"2","x":29,"y":65,"net":"GND","shape":"circle","d":1.6},{"ref":"TP1","pin":"1","name":"3V3","x":24,"y":76,"net":"+3V3","shape":"tp","d":2.0},{"ref":"TP3","pin":"1","name":"GND","x":28,"y":76,"net":"GND","shape":"tp","d":2.0},{"ref":"J8","pin":"1","name":"GND","x":62,"y":3,"net":"GND","shape":"rect","d":1.8},{"ref":"J8","pin":"2","name":"+5V","x":64,"y":3,"net":"+5V","shape":"circle","d":1.8},{"ref":"J8","pin":"3","name":"PWM","x":66,"y":3,"net":"PWM_FR","shape":"circle","d":1.8},{"ref":"J7","pin":"1","name":"GND","x":70,"y":3,"net":"GND","shape":"rect","d":1.8},{"ref":"J7","pin":"2","name":"+5V","x":72,"y":3,"net":"+5V","shape":"circle","d":1.8},{"ref":"J7","pin":"3","name":"PWM","x":74,"y":3,"net":"PWM_FL","shape":"circle","d":1.8},{"ref":"J5","pin":"1","name":"GND","x":78,"y":3,"net":"GND","shape":"rect","d":1.8},{"ref":"J5","pin":"2","name":"+5V","x":80,"y":3,"net":"+5V","shape":"circle","d":1.8},{"ref":"J5","pin":"3","name":"PWM","x":82,"y":3,"net":"PWM_STEER","shape":"circle","d":1.8},{"ref":"R5","pin":"1","name":"1","x":28,"y":17,"net":"+3V3","shape":"circle","d":1.6},{"ref":"R5","pin":"2","name":"2","x":34,"y":17,"net":"PWM_RR","shape":"circle","d":1.6},{"ref":"J4","pin":"1","name":"VCC","x":101,"y":18,"net":"+3V3","shape":"rect","d":1.8},{"ref":"J4","pin":"2","name":"GND","x":101,"y":20,"net":"GND","shape":"circle","d":1.8},{"ref":"J4","pin":"3","name":"DATA","x":101,"y":22,"net":"OW_DATA","shape":"circle","d":1.8},{"ref":"J6","pin":"1","name":"VCC","x":101,"y":26,"net":"+3V3","shape":"rect","d":1.8},{"ref":"J6","pin":"2","name":"GND","x":101,"y":28,"net":"GND","shape":"circle","d":1.8},{"ref":"J6","pin":"3","name":"DATA","x":101,"y":30,"net":"OW_DATA","shape":"circle","d":1.8},{"ref":"R1","pin":"1","name":"1","x":94,"y":20,"net":"+3V3","shape":"circle","d":1.6},{"ref":"R1","pin":"2","name":"2","x":94,"y":26,"net":"OW_DATA","shape":"circle","d":1.6},{"ref":"TP6","pin":"1","name":"OW","x":90,"y":30,"net":"OW_DATA","shape":"tp","d":2.0},{"ref":"J1","pin":"1","name":"3V3","x":86,"y":38,"net":"+3V3","shape":"rect","d":1.8},{"ref":"J1","pin":"2","name":"GND","x":86,"y":40,"net":"GND","shape":"circle","d":1.8},{"ref":"J1","pin":"3","name":"CTX","x":86,"y":42,"net":"CAN_TX","shape":"circle","d":1.8},{"ref":"J1","pin":"4","name":"CRX","x":86,"y":44,"net":"CAN_RX","shape":"circle","d":1.8},{"ref":"J13","pin":"1","name":"VCC","x":101,"y":50,"net":"+3V3","shape":"rect","d":1.8},{"ref":"J13","pin":"2","name":"GND","x":101,"y":52,"net":"GND","shape":"circle","d":1.8},{"ref":"J13","pin":"3","name":"OUT","x":101,"y":54,"net":"HALL_FL","shape":"circle","d":1.8},{"ref":"J3","pin":"1","name":"VCC","x":101,"y":58,"net":"+3V3","shape":"rect","d":1.8},{"ref":"J3","pin":"2","name":"GND","x":101,"y":60,"net":"GND","shape":"circle","d":1.8},{"ref":"J3","pin":"3","name":"OUT","x":101,"y":62,"net":"HALL_RR","shape":"circle","d":1.8},{"ref":"R9","pin":"1","name":"1","x":61,"y":57,"net":"+3V3","shape":"circle","d":1.6},{"ref":"R9","pin":"2","name":"2","x":67,"y":57,"net":"SCL","shape":"circle","d":1.6},{"ref":"R10","pin":"1","name":"1","x":61,"y":60,"net":"+3V3","shape":"circle","d":1.6},{"ref":"R10","pin":"2","name":"2","x":67,"y":60,"net":"SDA","shape":"circle","d":1.6},{"ref":"TP5","pin":"1","name":"SCL","x":71,"y":57,"net":"SCL","shape":"tp","d":2.0},{"ref":"TP4","pin":"1","name":"SDA","x":74,"y":57,"net":"SDA","shape":"tp","d":2.0},{"ref":"U2","pin":"1","name":"VCC","x":66,"y":76,"net":"+3V3","shape":"rect","d":1.8},{"ref":"U2","pin":"2","name":"GND","x":68,"y":76,"net":"GND","shape":"circle","d":1.8},{"ref":"U2","pin":"3","name":"SCL","x":70,"y":76,"net":"SCL","shape":"circle","d":1.8},{"ref":"U2","pin":"4","name":"SDA","x":72,"y":76,"net":"SDA","shape":"circle","d":1.8},{"ref":"U2","pin":"5","name":"XDA","x":74,"y":76,"net":"NC","shape":"circle","d":1.8},{"ref":"U2","pin":"6","name":"XCL","x":76,"y":76,"net":"NC","shape":"circle","d":1.8},{"ref":"U2","pin":"7","name":"AD0","x":78,"y":76,"net":"GND","shape":"circle","d":1.8},{"ref":"U2","pin":"8","name":"INT","x":80,"y":76,"net":"NC","shape":"circle","d":1.8},{"ref":"J2","pin":"1","name":"IN-","x":84,"y":76,"net":"12V_LOAD","shape":"rect","d":1.8},{"ref":"J2","pin":"2","name":"IN+","x":86,"y":76,"net":"12V_IN","shape":"circle","d":1.8},{"ref":"J2","pin":"3","name":"VBUS","x":88,"y":76,"net":"12V_LOAD","shape":"circle","d":1.8},{"ref":"J2","pin":"4","name":"ALERT","x":90,"y":76,"net":"NC","shape":"circle","d":1.8},{"ref":"J2","pin":"5","name":"SDA","x":92,"y":76,"net":"SDA","shape":"circle","d":1.8},{"ref":"J2","pin":"6","name":"SCL","x":94,"y":76,"net":"SCL","shape":"circle","d":1.8},{"ref":"J2","pin":"7","name":"GND","x":96,"y":76,"net":"GND","shape":"circle","d":1.8},{"ref":"J2","pin":"8","name":"VCC","x":98,"y":76,"net":"+3V3","shape":"circle","d":1.8},{"ref":"J14","pin":"1","name":"VBUS","x":84,"y":80,"net":"12V_LOAD","shape":"rect","d":1.8},{"ref":"J14","pin":"2","name":"IN+","x":86,"y":80,"net":"12V_IN","shape":"circle","d":1.8},{"ref":"J14","pin":"3","name":"IN-","x":88,"y":80,"net":"12V_LOAD","shape":"circle","d":1.8},{"ref":"R6","pin":"1","name":"1","x":57.5,"y":70,"net":"MOTOR_PWM","shape":"circle","d":1.6},{"ref":"R6","pin":"2","name":"2","x":57.5,"y":76,"net":"GND","shape":"circle","d":1.6},{"ref":"J16","pin":"1","name":"PWM","x":98,"y":80,"net":"MOTOR_PWM","shape":"rect","d":1.8},{"ref":"J16","pin":"2","name":"GND","x":100,"y":80,"net":"GND","shape":"circle","d":1.8}],"parts":[{"ref":"U1","value":"ESP32-C6 Pico (SmartElex)","kind":"module","x1":38.7,"y1":32.9,"x2":55.3,"y2":73.1,"label":"U1  ESP32-C6 VCU","usb":"bottom"},{"ref":"J15","value":"+5V IN","kind":"header","x1":91,"y1":79,"x2":95,"y2":81,"label":"J15 5V","body":null,"side":"s"},{"ref":"J10","value":"SERVO RR","kind":"header","x1":8,"y1":2,"x2":16,"y2":4,"label":"J10 RR","body":null,"side":"n"},{"ref":"J9","value":"SERVO RL","kind":"header","x1":18,"y1":2,"x2":26,"y2":4,"label":"J9 RL","body":null,"side":"n"},{"ref":"C4","value":"1000\u00b5F 10V","kind":"CE","x1":5,"y1":9,"x2":9,"y2":9},{"ref":"C5","value":"100nF","kind":"C","x1":3,"y1":15,"x2":7,"y2":15},{"ref":"R2","value":"10k","kind":"R","x1":15,"y1":6.5,"x2":15,"y2":12.5},{"ref":"R3","value":"10k","kind":"R","x1":25,"y1":6.5,"x2":25,"y2":12.5},{"ref":"J17","value":"VSYS JMP","kind":"header","x1":31,"y1":75,"x2":35,"y2":77,"label":"J17 VSYS","body":null,"side":"s"},{"ref":"TP2","value":"5V","kind":"tp","x1":29.5,"y1":6,"x2":29.5,"y2":6},{"ref":"U3","value":"KY-040","kind":"header","x1":2,"y1":18,"x2":4,"y2":28,"label":"U3 KY-040","body":[3.8,16.5,19,35.5],"side":"n"},{"ref":"R13","value":"1k","kind":"R","x1":23,"y1":38,"x2":29,"y2":38},{"ref":"R12","value":"1k","kind":"R","x1":23,"y1":41,"x2":29,"y2":41},{"ref":"J11","value":"HALL RL","kind":"header","x1":2,"y1":39,"x2":4,"y2":45,"label":"J11 HALL RL","body":null,"side":"n"},{"ref":"J12","value":"HALL FR","kind":"header","x1":2,"y1":48,"x2":4,"y2":54,"label":"J12 HALL FR","body":null,"side":"n"},{"ref":"R8","value":"10k","kind":"R","x1":32,"y1":59,"x2":26,"y2":59},{"ref":"C1","value":"100nF","kind":"C","x1":33,"y1":56.5,"x2":29,"y2":56.5},{"ref":"R7","value":"10k","kind":"R","x1":32,"y1":62.5,"x2":26,"y2":62.5},{"ref":"C2","value":"100nF","kind":"C","x1":33,"y1":65,"x2":29,"y2":65},{"ref":"TP1","value":"3V3","kind":"tp","x1":24,"y1":76,"x2":24,"y2":76},{"ref":"TP3","value":"GND","kind":"tp","x1":28,"y1":76,"x2":28,"y2":76},{"ref":"J8","value":"SERVO FR","kind":"header","x1":61,"y1":2,"x2":67,"y2":4,"label":"J8 FR","body":null,"side":"n"},{"ref":"J7","value":"SERVO FL","kind":"header","x1":69,"y1":2,"x2":75,"y2":4,"label":"J7 FL","body":null,"side":"n"},{"ref":"J5","value":"SERVO STEER","kind":"header","x1":77,"y1":2,"x2":83,"y2":4,"label":"J5 STEER","body":null,"side":"n"},{"ref":"R5","value":"10k","kind":"R","x1":28,"y1":17,"x2":34,"y2":17},{"ref":"J4","value":"DS18B20 A","kind":"header","x1":100,"y1":17,"x2":102,"y2":23,"label":"J4 DS18B20","body":null,"side":"n"},{"ref":"J6","value":"DS18B20 B","kind":"header","x1":100,"y1":25,"x2":102,"y2":31,"label":"J6 DS18B20","body":null,"side":"n"},{"ref":"R1","value":"4.7k","kind":"R","x1":94,"y1":20,"x2":94,"y2":26},{"ref":"TP6","value":"OW","kind":"tp","x1":90,"y1":30,"x2":90,"y2":30},{"ref":"J1","value":"CAN MODULE","kind":"header","x1":85,"y1":37,"x2":87,"y2":45,"label":"J1 SN65HVD230","body":[86.8,35.5,103,46.5],"side":"n"},{"ref":"J13","value":"HALL FL","kind":"header","x1":100,"y1":49,"x2":102,"y2":55,"label":"J13 HALL FL","body":null,"side":"n"},{"ref":"J3","value":"HALL RR","kind":"header","x1":100,"y1":57,"x2":102,"y2":63,"label":"J3 HALL RR","body":null,"side":"n"},{"ref":"R9","value":"4.7k","kind":"R","x1":61,"y1":57,"x2":67,"y2":57},{"ref":"R10","value":"4.7k","kind":"R","x1":61,"y1":60,"x2":67,"y2":60},{"ref":"TP5","value":"SCL","kind":"tp","x1":71,"y1":57,"x2":71,"y2":57},{"ref":"TP4","value":"SDA","kind":"tp","x1":74,"y1":57,"x2":74,"y2":57},{"ref":"U2","value":"MPU6050","kind":"header","x1":65,"y1":75,"x2":81,"y2":77,"label":"U2 MPU6050 (GY-521)","body":[65,63.5,82,77],"side":"s"},{"ref":"J2","value":"INA260","kind":"header","x1":83,"y1":75,"x2":99,"y2":77,"label":"J2 INA260","body":[83,61,99.5,77],"side":"s"},{"ref":"J14","value":"12V","kind":"header","x1":83,"y1":79,"x2":89,"y2":81,"label":"J14 12V","body":null,"side":"s"},{"ref":"R6","value":"4.7k","kind":"R","x1":57.5,"y1":70,"x2":57.5,"y2":76},{"ref":"J16","value":"MOTOR","kind":"header","x1":97,"y1":79,"x2":101,"y2":81,"label":"J16 MOT","body":null,"side":"s"}],"traces":[{"net":"12V_IN","layer":0,"pts":[[86.0,76.0],[86.0,80.0]],"w":1.8},{"net":"12V_LOAD","layer":0,"pts":[[84.0,76.0],[84.0,74.5],[84.5,74.0],[87.5,74.0],[88.0,74.5],[88.0,76.0]],"w":1.8},{"net":"12V_LOAD","layer":0,"pts":[[84.0,76.0],[84.0,80.0]],"w":1.8},{"net":"12V_LOAD","layer":0,"pts":[[88.0,76.0],[88.0,80.0]],"w":1.8},{"net":"+5V","layer":0,"pts":[[29.5,6.0],[27.0,8.5],[24.0,8.5],[21.0,5.5],[21.0,3.0]],"w":1.5},{"net":"+5V","layer":0,"pts":[[21.0,5.5],[18.0,8.5],[14.0,8.5],[11.0,5.5],[11.0,3.0]],"w":1.5},{"net":"+5V","layer":0,"pts":[[11.0,5.5],[8.5,5.5],[5.0,9.0]],"w":1.5},{"net":"+5V","layer":0,"pts":[[5.0,9.0],[3.0,11.0],[3.0,15.0]],"w":1.5},{"net":"+5V","layer":0,"pts":[[29.5,6.0],[31.0,7.5],[60.5,7.5],[64.0,4.0],[64.0,3.0]],"w":1.5},{"net":"+5V","layer":0,"pts":[[64.0,4.0],[65.0,5.0],[71.0,5.0],[72.0,4.0],[72.0,3.0]],"w":1.5},{"net":"+5V","layer":0,"pts":[[72.0,4.0],[73.0,5.0],[79.0,5.0],[80.0,4.0],[80.0,3.0]],"w":1.5},{"net":"+5V","layer":0,"pts":[[36.0,7.5],[36.0,71.0],[32.0,75.0],[32.0,76.0]],"w":1.5},{"net":"+5V","layer":0,"pts":[[36.0,71.0],[43.0,78.0],[82.0,78.0]],"w":1.5},{"net":"+5V","layer":1,"pts":[[82.0,78.0],[90.0,78.0],[92.0,80.0]],"w":1.5},{"net":"VSYS","layer":1,"pts":[[40.0,70.0],[39.5,70.0],[34.0,75.5],[34.0,76.0]],"w":0.6},{"net":"FBRAW_RL","layer":0,"pts":[[25.0,3.0],[25.0,6.5]],"w":0.4},{"net":"FBRAW_RR","layer":0,"pts":[[15.0,3.0],[15.0,6.5]],"w":0.4},{"net":"ENC_DT","layer":1,"pts":[[40.0,46.0],[34.0,46.0],[29.0,41.0]],"w":0.4},{"net":"ENC_CLK","layer":1,"pts":[[40.0,44.0],[35.0,44.0],[29.0,38.0]],"w":0.4},{"net":"ENC_CLK_RAW","layer":0,"pts":[[3.0,19.0],[4.0,19.0],[23.0,38.0]],"w":0.4},{"net":"ENC_DT_RAW","layer":0,"pts":[[3.0,21.0],[3.5,21.0],[23.0,40.5],[23.0,41.0]],"w":0.4},{"net":"HALL_FR","layer":1,"pts":[[40.0,56.0],[35.0,56.0],[34.5,55.5]],"w":0.4},{"net":"HALL_FR","layer":0,"pts":[[34.5,55.5],[32.0,53.0],[3.0,53.0]],"w":0.4},{"net":"CAN_RX","layer":0,"pts":[[54.0,54.0],[76.0,54.0],[86.0,44.0]],"w":0.4},{"net":"HALL_RL","layer":1,"pts":[[40.0,54.0],[34.5,54.0]],"w":0.4},{"net":"HALL_RL","layer":0,"pts":[[34.5,54.0],[24.5,44.0],[3.0,44.0]],"w":0.4},{"net":"HALL_FL","layer":0,"pts":[[54.0,56.0],[54.5,55.5],[99.5,55.5],[101.0,54.0]],"w":0.4},{"net":"HALL_RR","layer":0,"pts":[[54.0,66.0],[97.0,66.0],[101.0,62.0]],"w":0.4},{"net":"PWM_FR","layer":0,"pts":[[54.0,42.0],[54.5,42.0],[66.0,30.5],[66.0,6.5]],"w":0.4},{"net":"PWM_FR","layer":1,"pts":[[66.0,6.5],[66.0,3.0]],"w":0.4},{"net":"CAN_TX","layer":1,"pts":[[54.0,64.0],[54.5,64.0],[60.0,58.5],[63.0,58.5],[79.5,42.0],[86.0,42.0]],"w":0.4},{"net":"MOTOR_PWM","layer":0,"pts":[[57.5,70.0],[54.0,70.0]],"w":0.4},{"net":"MOTOR_PWM","layer":0,"pts":[[57.5,70.0],[94.5,70.0],[99.5,75.0],[99.5,78.0],[98.0,79.5],[98.0,80.0]],"w":0.4},{"net":"SDA","layer":0,"pts":[[67.0,60.0],[71.0,60.0],[74.0,57.0]],"w":0.4},{"net":"SDA","layer":0,"pts":[[67.0,60.0],[65.0,62.0],[54.0,62.0]],"w":0.4},{"net":"SDA","layer":1,"pts":[[67.0,60.0],[72.0,65.0],[72.0,76.0]],"w":0.4},{"net":"SDA","layer":0,"pts":[[72.0,76.0],[72.0,75.5],[75.0,72.5],[89.0,72.5],[92.0,75.5],[92.0,76.0]],"w":0.4},{"net":"SCL","layer":0,"pts":[[71.0,57.0],[67.0,57.0]],"w":0.4},{"net":"SCL","layer":0,"pts":[[67.0,57.0],[65.5,58.5],[56.0,58.5],[54.5,60.0],[54.0,60.0]],"w":0.4},{"net":"SCL","layer":0,"pts":[[54.0,60.0],[53.5,60.0],[52.5,61.0],[52.5,73.0],[54.0,74.5],[69.0,74.5],[70.0,75.5],[70.0,76.0]],"w":0.4},{"net":"SCL","layer":0,"pts":[[70.0,75.5],[74.0,71.5],[90.0,71.5],[94.0,75.5],[94.0,76.0]],"w":0.4},{"net":"PWM_FL","layer":0,"pts":[[54.0,44.0],[54.5,44.0],[83.5,15.0],[83.5,2.0],[83.0,1.5],[75.5,1.5],[74.0,3.0]],"w":0.4},{"net":"RL_FB","layer":0,"pts":[[32.0,62.5],[33.0,63.5],[33.0,65.0]],"w":0.4},{"net":"RL_FB","layer":1,"pts":[[32.0,62.5],[39.5,62.5],[40.0,62.0]],"w":0.4},{"net":"RL_FB","layer":1,"pts":[[32.0,62.5],[30.5,61.0],[30.5,48.5]],"w":0.4},{"net":"RL_FB","layer":0,"pts":[[30.5,48.5],[30.5,22.0],[25.0,16.5],[25.0,12.5]],"w":0.4},{"net":"PWM_RL","layer":0,"pts":[[54.0,40.0],[53.5,40.0],[37.5,24.0],[37.5,16.5]],"w":0.4},{"net":"PWM_RL","layer":1,"pts":[[37.5,16.5],[25.5,4.5],[24.0,4.5],[23.0,3.5],[23.0,3.0]],"w":0.4},{"net":"PWM_STEER","layer":0,"pts":[[54.0,46.0],[54.5,46.0],[84.5,16.0],[84.5,5.5]],"w":0.4},{"net":"PWM_STEER","layer":1,"pts":[[84.5,5.5],[82.0,3.0]],"w":0.4},{"net":"RR_FB","layer":0,"pts":[[33.0,56.5],[32.0,57.5],[32.0,59.0]],"w":0.4},{"net":"RR_FB","layer":1,"pts":[[32.0,59.0],[33.0,60.0],[40.0,60.0]],"w":0.4},{"net":"RR_FB","layer":1,"pts":[[33.0,56.5],[33.0,49.0],[29.5,45.5]],"w":0.4},{"net":"RR_FB","layer":0,"pts":[[29.5,45.5],[24.5,40.5],[24.5,22.0],[15.0,12.5]],"w":0.4},{"net":"OW_DATA","layer":0,"pts":[[90.0,30.0],[94.0,26.0]],"w":0.4},{"net":"OW_DATA","layer":0,"pts":[[94.0,26.0],[98.0,30.0],[101.0,30.0]],"w":0.4},{"net":"OW_DATA","layer":0,"pts":[[95.5,27.5],[101.0,22.0]],"w":0.4},{"net":"OW_DATA","layer":0,"pts":[[90.0,30.0],[70.0,50.0],[54.0,50.0]],"w":0.4},{"net":"PWM_RR","layer":1,"pts":[[34.0,17.0],[32.0,17.0],[19.5,4.5],[14.0,4.5],[13.0,3.5],[13.0,3.0]],"w":0.4},{"net":"PWM_RR","layer":1,"pts":[[34.0,17.0],[34.0,22.0],[37.5,25.5]],"w":0.4},{"net":"PWM_RR","layer":0,"pts":[[37.5,25.5],[52.5,40.5],[52.5,51.0],[53.5,52.0],[54.0,52.0]],"w":0.4},{"net":"+3V3","layer":1,"pts":[[61.0,57.0],[59.5,57.0],[57.5,59.0],[57.5,59.5]],"w":0.6},{"net":"+3V3","layer":0,"pts":[[57.5,59.5],[58.0,60.0],[61.0,60.0]],"w":0.6},{"net":"+3V3","layer":1,"pts":[[61.0,60.0],[61.0,71.0],[66.0,76.0]],"w":0.6},{"net":"+3V3","layer":1,"pts":[[61.0,71.0],[58.5,73.5],[50.0,73.5],[40.5,64.0],[40.0,64.0]],"w":0.6},{"net":"+3V3","layer":1,"pts":[[40.0,64.0],[36.5,64.0],[24.5,76.0],[24.0,76.0]],"w":0.6},{"net":"+3V3","layer":1,"pts":[[61.0,60.0],[64.5,60.0],[66.0,58.5],[81.0,58.5],[98.0,75.5],[98.0,76.0]],"w":0.6},{"net":"+3V3","layer":1,"pts":[[90.5,68.0],[100.5,58.0],[101.0,58.0]],"w":0.6},{"net":"+3V3","layer":0,"pts":[[101.0,58.0],[102.5,56.5],[102.5,51.0],[101.5,50.0],[101.0,50.0]],"w":0.6},{"net":"+3V3","layer":0,"pts":[[101.5,50.0],[102.5,49.0],[102.5,27.0],[101.5,26.0],[101.0,26.0]],"w":0.6},{"net":"+3V3","layer":0,"pts":[[101.5,26.0],[102.5,25.0],[102.5,19.0],[101.5,18.0],[101.0,18.0]],"w":0.6},{"net":"+3V3","layer":0,"pts":[[101.0,18.0],[96.0,18.0],[94.0,20.0]],"w":0.6},{"net":"+3V3","layer":0,"pts":[[102.5,38.0],[86.0,38.0]],"w":0.6},{"net":"+3V3","layer":0,"pts":[[24.0,76.0],[23.5,76.0],[1.5,54.0],[1.5,50.0],[2.5,49.0],[3.0,49.0]],"w":0.6},{"net":"+3V3","layer":0,"pts":[[2.5,49.0],[1.5,48.0],[1.5,41.0],[2.5,40.0],[3.0,40.0]],"w":0.6},{"net":"+3V3","layer":0,"pts":[[2.5,40.0],[1.5,39.0],[1.5,26.0],[2.5,25.0],[3.0,25.0]],"w":0.6},{"net":"+3V3","layer":0,"pts":[[2.5,25.0],[1.5,24.0],[1.5,18.0],[3.0,16.5],[8.5,16.5],[14.0,11.0],[26.0,11.0],[28.0,13.0],[28.0,17.0]],"w":0.6}],"vias":[{"net":"+5V","x":82.0,"y":78.0},{"net":"HALL_FR","x":34.5,"y":55.5},{"net":"HALL_RL","x":34.5,"y":54.0},{"net":"PWM_FR","x":66.0,"y":6.5},{"net":"RL_FB","x":30.5,"y":48.5},{"net":"PWM_RL","x":37.5,"y":16.5},{"net":"PWM_STEER","x":84.5,"y":5.5},{"net":"RR_FB","x":29.5,"y":45.5},{"net":"PWM_RR","x":37.5,"y":25.5},{"net":"+3V3","x":57.5,"y":59.5}],"holes":[[100.5,4],[3.5,78.5],[101.5,69],[44,4]]},"BX":80,"BY":70,"WW":332,"WH":282,"ext":[{"id":"S_J10","title":"RR flap","sub":"MG996R","x":87.5,"y":28,"w":9,"h":22,"kind":"servo","pins":[{"name":"GND","x":89,"y":50,"net":"GND","dir":"d"},{"name":"+5V","x":91,"y":50,"net":"+5V","dir":"d"},{"name":"PWM","x":93,"y":50,"net":"PWM_RR","dir":"d"},{"name":"FB","x":95,"y":50,"net":"FBRAW_RR","dir":"d"}],"note":"Brown = GND, red = +5V, orange = PWM, feedback = the wire you added to the pot wiper"},{"id":"S_J9","title":"RL flap","sub":"MG996R","x":97.5,"y":28,"w":9,"h":22,"kind":"servo","pins":[{"name":"GND","x":99,"y":50,"net":"GND","dir":"d"},{"name":"+5V","x":101,"y":50,"net":"+5V","dir":"d"},{"name":"PWM","x":103,"y":50,"net":"PWM_RL","dir":"d"},{"name":"FB","x":105,"y":50,"net":"FBRAW_RL","dir":"d"}],"note":"Brown = GND, red = +5V, orange = PWM, feedback = the wire you added to the pot wiper"},{"id":"S_J8","title":"FR flap","sub":"SG90","x":140.5,"y":28,"w":7,"h":22,"kind":"servo","pins":[{"name":"GND","x":142,"y":50,"net":"GND","dir":"d"},{"name":"+5V","x":144,"y":50,"net":"+5V","dir":"d"},{"name":"PWM","x":146,"y":50,"net":"PWM_FR","dir":"d"}],"note":"Brown = GND, red = +5V, orange = PWM"},{"id":"S_J7","title":"FL flap","sub":"SG90","x":148.5,"y":28,"w":7,"h":22,"kind":"servo","pins":[{"name":"GND","x":150,"y":50,"net":"GND","dir":"d"},{"name":"+5V","x":152,"y":50,"net":"+5V","dir":"d"},{"name":"PWM","x":154,"y":50,"net":"PWM_FL","dir":"d"}],"note":"Brown = GND, red = +5V, orange = PWM"},{"id":"S_J5","title":"Steering","sub":"MG995","x":156.5,"y":28,"w":7,"h":22,"kind":"servo","pins":[{"name":"GND","x":158,"y":50,"net":"GND","dir":"d"},{"name":"+5V","x":160,"y":50,"net":"+5V","dir":"d"},{"name":"PWM","x":162,"y":50,"net":"PWM_STEER","dir":"d"}],"note":"Brown = GND, red = +5V, orange = PWM"},{"id":"H_RL","title":"Hall RL","sub":"rear-left wheel","x":48,"y":108.3,"w":16,"h":7.4,"kind":"hall","pins":[{"name":"VCC","x":64,"y":110,"net":"+3V3","dir":"r"},{"name":"GND","x":64,"y":112,"net":"GND","dir":"r"},{"name":"OUT","x":64,"y":114,"net":"HALL_RL","dir":"r"}],"note":"Magnet on the wheel, sensor face 2-5 mm away"},{"id":"H_FR","title":"Hall FR","sub":"front-right wheel","x":48,"y":117.3,"w":16,"h":7.4,"kind":"hall","pins":[{"name":"VCC","x":64,"y":119,"net":"+3V3","dir":"r"},{"name":"GND","x":64,"y":121,"net":"GND","dir":"r"},{"name":"OUT","x":64,"y":123,"net":"HALL_FR","dir":"r"}],"note":"Magnet on the wheel, sensor face 2-5 mm away"},{"id":"H_FL","title":"Hall FL","sub":"front-left wheel","x":198,"y":118.3,"w":16,"h":7.4,"kind":"hall","pins":[{"name":"VCC","x":198,"y":120,"net":"+3V3","dir":"l"},{"name":"GND","x":198,"y":122,"net":"GND","dir":"l"},{"name":"OUT","x":198,"y":124,"net":"HALL_FL","dir":"l"}],"note":"Magnet on the wheel, sensor face 2-5 mm away"},{"id":"H_RR","title":"Hall RR","sub":"rear-right wheel","x":198,"y":126.3,"w":16,"h":7.4,"kind":"hall","pins":[{"name":"VCC","x":198,"y":128,"net":"+3V3","dir":"l"},{"name":"GND","x":198,"y":130,"net":"GND","dir":"l"},{"name":"OUT","x":198,"y":132,"net":"HALL_RR","dir":"l"}],"note":"Magnet on the wheel, sensor face 2-5 mm away"},{"id":"T_A","title":"DS18B20 A","sub":"motor / battery (set with tempmap)","x":198,"y":86.5,"w":30,"h":7,"kind":"probe","pins":[{"name":"VCC red","x":198,"y":88,"net":"+3V3","dir":"l"},{"name":"GND black","x":198,"y":90,"net":"GND","dir":"l"},{"name":"DATA yellow","x":198,"y":92,"net":"OW_DATA","dir":"l"}],"note":"Three-wire mode (not parasite power)"},{"id":"T_B","title":"DS18B20 B","sub":"motor / battery (set with tempmap)","x":198,"y":94.5,"w":30,"h":7,"kind":"probe","pins":[{"name":"VCC red","x":198,"y":96,"net":"+3V3","dir":"l"},{"name":"GND black","x":198,"y":98,"net":"GND","dir":"l"},{"name":"DATA yellow","x":198,"y":100,"net":"OW_DATA","dir":"l"}],"note":"Three-wire mode (not parasite power)"},{"id":"CANT","title":"CAN out","sub":"on the SN65HVD230 module","x":180.5,"y":106,"w":3.5,"h":9.5,"kind":"term","pins":[{"name":"CANH","x":184,"y":108,"net":"CANH","dir":"r"},{"name":"CANL","x":184,"y":110.5,"net":"CANL","dir":"r"},{"name":"GND","x":184,"y":113,"net":"GND","dir":"r"}],"note":"Solder the GND wire to the module's GND pin; the module has no GND screw terminal"},{"id":"PI","title":"Raspberry Pi 4B + 2-CH CAN HAT","sub":"gateway \u00b7 own 5 V 3 A supply","x":248,"y":204,"w":67,"h":44,"kind":"pi","pins":[{"name":"CAN0 H","x":315,"y":216,"net":"CANH","dir":"r"},{"name":"CAN0 L","x":315,"y":219,"net":"CANL","dir":"r"},{"name":"CAN0 G","x":315,"y":222,"net":"GND","dir":"r"},{"name":"CAN1 H","x":315,"y":228,"net":"NC","dir":"r"},{"name":"CAN1 L","x":315,"y":231,"net":"NC","dir":"r"},{"name":"CAN1 G","x":315,"y":234,"net":"NC","dir":"r"},{"name":"USB-C","x":258,"y":248,"net":"PI_5V","dir":"d"}],"note":"The HAT uses SPI0 (GPIO 7-11) and GPIO 23/25. Either CAN channel works; can_up.sh reports which canX has the VCU."},{"id":"RA_CAR","title":"Ra-02 (car)","sub":"SX1278 on adapter board \u00b7 3.3 V only","x":251,"y":174,"w":50,"h":14,"kind":"ra","pins":[{"name":"3.3V","x":254.0,"y":188,"net":"PI_3V3","dir":"d"},{"name":"GND","x":259.4,"y":188,"net":"PI_GND","dir":"d"},{"name":"GND ","x":264.8,"y":188,"net":"PI_GND","dir":"d"},{"name":"RESET","x":270.2,"y":188,"net":"RA_RST","dir":"d"},{"name":"NSS","x":275.6,"y":188,"net":"RA_NSS","dir":"d"},{"name":"DIO0","x":281.0,"y":188,"net":"RA_DIO0","dir":"d"},{"name":"MISO","x":286.4,"y":188,"net":"RA_MISO","dir":"d"},{"name":"MOSI","x":291.8,"y":188,"net":"RA_MOSI","dir":"d"},{"name":"SCK","x":297.2,"y":188,"net":"RA_SCK","dir":"d"}],"note":"SPI1 through the HAT's pass-through header. Antenna on before power-up. Wires under 15 cm."},{"id":"PIPSU","title":"Pi supply","sub":"5 V 3 A USB-C","x":250,"y":254,"w":18,"h":7,"kind":"box","pins":[{"name":"5V","x":258,"y":254,"net":"PI_5V","dir":"u"}],"note":""},{"id":"GS","title":"Ground ESP32","sub":"classic DevKit \u00b7 USB to laptop 1","x":14,"y":206,"w":22,"h":38,"kind":"box","pins":[{"name":"3V3","x":36,"y":210,"net":"GS_3V3","dir":"r"},{"name":"GND","x":36,"y":214,"net":"GS_GND","dir":"r"},{"name":"GPIO5","x":36,"y":218,"net":"GS_NSS","dir":"r"},{"name":"GPIO18","x":36,"y":222,"net":"GS_SCK","dir":"r"},{"name":"GPIO23","x":36,"y":226,"net":"GS_MOSI","dir":"r"},{"name":"GPIO19","x":36,"y":230,"net":"GS_MISO","dir":"r"},{"name":"GPIO14","x":36,"y":234,"net":"GS_RST","dir":"r"},{"name":"GPIO26","x":36,"y":238,"net":"GS_DIO0","dir":"r"},{"name":"USB","x":25,"y":244,"net":"USB","dir":"d"}],"note":""},{"id":"RA_GS","title":"Ra-02 (ground)","sub":"SX1278 \u00b7 3.3 V only","x":54,"y":206,"w":16,"h":34,"kind":"box","pins":[{"name":"3.3V","x":54,"y":210,"net":"GS_3V3","dir":"l"},{"name":"GND","x":54,"y":214,"net":"GS_GND","dir":"l"},{"name":"NSS","x":54,"y":218,"net":"GS_NSS","dir":"l"},{"name":"SCK","x":54,"y":222,"net":"GS_SCK","dir":"l"},{"name":"MOSI","x":54,"y":226,"net":"GS_MOSI","dir":"l"},{"name":"MISO","x":54,"y":230,"net":"GS_MISO","dir":"l"},{"name":"RESET","x":54,"y":234,"net":"GS_RST","dir":"l"},{"name":"DIO0","x":54,"y":238,"net":"GS_DIO0","dir":"l"},{"name":"ANT","x":62,"y":240,"net":"RF","dir":"d"}],"note":""},{"id":"LAPTOP","title":"Laptop 1","sub":"backend \u00b7 dashboard \u00b7 bridge.py","x":8,"y":256,"w":34,"h":14,"kind":"box","pins":[{"name":"USB","x":25,"y":256,"net":"USB","dir":"u"}],"note":""},{"id":"CAM","title":"ESP32-CAM","sub":"own 5 V + 470 \u00b5F \u00b7 Wi-Fi SSID CTRL","x":84,"y":250,"w":28,"h":10,"kind":"box","pins":[{"name":"5V","x":98,"y":260,"net":"CAM_5V","dir":"d"}],"note":""},{"id":"CAMPSU","title":"5 V supply","sub":"USB or the car's 5 V","x":84,"y":265,"w":28,"h":7,"kind":"box","pins":[{"name":"5V","x":98,"y":265,"net":"CAM_5V","dir":"u"}],"note":""},{"id":"ADAPT","title":"12 V adapter","sub":"2.2 A barrel jack","x":100,"y":176,"w":22,"h":14,"kind":"box","pins":[{"name":"+","x":122,"y":180,"net":"12V_RAW","dir":"r"},{"name":"\u2212","x":122,"y":186,"net":"GND","dir":"r"}],"note":""},{"id":"FUSE","title":"Fuse 3 A","sub":"inline, on the + lead","x":128,"y":161,"w":12,"h":5,"kind":"fuse","pins":[{"name":"a","x":128,"y":163.5,"net":"12V_RAW","dir":"l"},{"name":"b","x":140,"y":163.5,"net":"12V_IN","dir":"r"}],"note":""},{"id":"NODE","title":"12 V splice","sub":"terminal block / Wago","x":144,"y":178,"w":13,"h":11,"kind":"term","pins":[{"name":"in","x":150.5,"y":178,"net":"12V_LOAD","dir":"u"},{"name":"to buck","x":157,"y":181.5,"net":"12V_LOAD","dir":"r"},{"name":"to L298N","x":157,"y":186,"net":"12V_LOAD","dir":"r"}],"note":""},{"id":"BUCK","title":"Buck converter","sub":"set 5.0-5.2 V before connecting","x":164,"y":160,"w":24,"h":14,"kind":"box","pins":[{"name":"OUT+","x":170,"y":160,"net":"+5V","dir":"u"},{"name":"OUT\u2212","x":174,"y":160,"net":"GND","dir":"u"},{"name":"IN+","x":164,"y":166,"net":"12V_LOAD","dir":"l"},{"name":"IN\u2212","x":164,"y":171,"net":"GND","dir":"l"}],"note":""},{"id":"STAR","title":"GND star","sub":"one point for every ground","x":146,"y":196,"w":28,"h":7,"kind":"term","pins":[{"name":"adapter \u2212","x":150,"y":196,"net":"GND","dir":"u"},{"name":"buck IN\u2212","x":159,"y":196,"net":"GND","dir":"u"},{"name":"L298N GND","x":168,"y":196,"net":"GND","dir":"u"}],"note":""},{"id":"L298N","title":"L298N","sub":"rotated: terminals + header on top edge","x":196,"y":164,"w":42,"h":26,"kind":"l298n","pins":[{"name":"ENB","x":200,"y":164,"net":"MOTOR_PWM","dir":"u"},{"name":"IN4","x":203,"y":164,"net":"GND","dir":"u"},{"name":"IN3","x":206,"y":164,"net":"L298_5V","dir":"u"},{"name":"IN2","x":209,"y":164,"net":"GND","dir":"u"},{"name":"IN1","x":212,"y":164,"net":"L298_5V","dir":"u"},{"name":"ENA","x":215,"y":164,"net":"MOTOR_PWM","dir":"u"},{"name":"5V","x":221,"y":164,"net":"L298_5V","dir":"u"},{"name":"GND","x":226,"y":164,"net":"GND","dir":"u"},{"name":"12V","x":231,"y":164,"net":"12V_LOAD","dir":"u"},{"name":"OUT1","x":196,"y":174,"net":"MOTOR_A1","dir":"l"},{"name":"OUT2","x":196,"y":180,"net":"MOTOR_A2","dir":"l"},{"name":"OUT3","x":238,"y":174,"net":"MOTOR_B1","dir":"r"},{"name":"OUT4","x":238,"y":180,"net":"MOTOR_B2","dir":"r"}],"note":"ENA and ENB jumpers removed. Keep the 12 V regulator jumper fitted so the 5V terminal can feed the IN straps."},{"id":"MOT_L","title":"Motor RL","sub":"Johnson \u00b7 rear left","x":176,"y":208,"w":16,"h":10,"kind":"motor","pins":[{"name":"+","x":180,"y":208,"net":"MOTOR_A1","dir":"u"},{"name":"\u2212","x":188,"y":208,"net":"MOTOR_A2","dir":"u"}],"note":""},{"id":"MOT_R","title":"Motor RR","sub":"Johnson \u00b7 rear right","x":241,"y":168,"w":8,"h":18,"kind":"motor","pins":[{"name":"+","x":241,"y":174,"net":"MOTOR_B1","dir":"l"},{"name":"\u2212","x":241,"y":180,"net":"MOTOR_B2","dir":"l"}],"note":""}],"wires":[{"net":"GND","a":[89,50,"d"],"b":[89,73,"u"],"la":"RR flap servo \u00b7 GND (brown)","lb":"J10 pin 1 (GND)","w":0.5,"k":null,"via":null,"label":null},{"net":"+5V","a":[91,50,"d"],"b":[91,73,"u"],"la":"RR flap servo \u00b7 +5V (red)","lb":"J10 pin 2 (+5V)","w":0.5,"k":null,"via":null,"label":null},{"net":"PWM_RR","a":[93,50,"d"],"b":[93,73,"u"],"la":"RR flap servo \u00b7 PWM (orange)","lb":"J10 pin 3 (PWM)","w":0.5,"k":null,"via":null,"label":null},{"net":"FBRAW_RR","a":[95,50,"d"],"b":[95,73,"u"],"la":"RR flap servo \u00b7 FB (added wire)","lb":"J10 pin 4 (FB)","w":0.5,"k":null,"via":null,"label":null},{"net":"GND","a":[99,50,"d"],"b":[99,73,"u"],"la":"RL flap servo \u00b7 GND (brown)","lb":"J9 pin 1 (GND)","w":0.5,"k":null,"via":null,"label":null},{"net":"+5V","a":[101,50,"d"],"b":[101,73,"u"],"la":"RL flap servo \u00b7 +5V (red)","lb":"J9 pin 2 (+5V)","w":0.5,"k":null,"via":null,"label":null},{"net":"PWM_RL","a":[103,50,"d"],"b":[103,73,"u"],"la":"RL flap servo \u00b7 PWM (orange)","lb":"J9 pin 3 (PWM)","w":0.5,"k":null,"via":null,"label":null},{"net":"FBRAW_RL","a":[105,50,"d"],"b":[105,73,"u"],"la":"RL flap servo \u00b7 FB (added wire)","lb":"J9 pin 4 (FB)","w":0.5,"k":null,"via":null,"label":null},{"net":"GND","a":[142,50,"d"],"b":[142,73,"u"],"la":"FR flap servo \u00b7 GND (brown)","lb":"J8 pin 1 (GND)","w":0.5,"k":null,"via":null,"label":null},{"net":"+5V","a":[144,50,"d"],"b":[144,73,"u"],"la":"FR flap servo \u00b7 +5V (red)","lb":"J8 pin 2 (+5V)","w":0.5,"k":null,"via":null,"label":null},{"net":"PWM_FR","a":[146,50,"d"],"b":[146,73,"u"],"la":"FR flap servo \u00b7 PWM (orange)","lb":"J8 pin 3 (PWM)","w":0.5,"k":null,"via":null,"label":null},{"net":"GND","a":[150,50,"d"],"b":[150,73,"u"],"la":"FL flap servo \u00b7 GND (brown)","lb":"J7 pin 1 (GND)","w":0.5,"k":null,"via":null,"label":null},{"net":"+5V","a":[152,50,"d"],"b":[152,73,"u"],"la":"FL flap servo \u00b7 +5V (red)","lb":"J7 pin 2 (+5V)","w":0.5,"k":null,"via":null,"label":null},{"net":"PWM_FL","a":[154,50,"d"],"b":[154,73,"u"],"la":"FL flap servo \u00b7 PWM (orange)","lb":"J7 pin 3 (PWM)","w":0.5,"k":null,"via":null,"label":null},{"net":"GND","a":[158,50,"d"],"b":[158,73,"u"],"la":"Steering servo \u00b7 GND (brown)","lb":"J5 pin 1 (GND)","w":0.5,"k":null,"via":null,"label":null},{"net":"+5V","a":[160,50,"d"],"b":[160,73,"u"],"la":"Steering servo \u00b7 +5V (red)","lb":"J5 pin 2 (+5V)","w":0.5,"k":null,"via":null,"label":null},{"net":"PWM_STEER","a":[162,50,"d"],"b":[162,73,"u"],"la":"Steering servo \u00b7 PWM (orange)","lb":"J5 pin 3 (PWM)","w":0.5,"k":null,"via":null,"label":null},{"net":"+3V3","a":[64,110,"r"],"b":[83,110,"l"],"la":"Hall RL \u00b7 VCC","lb":"J11 pin 1 (VCC)","w":0.45,"k":null,"via":null,"label":null},{"net":"GND","a":[64,112,"r"],"b":[83,112,"l"],"la":"Hall RL \u00b7 GND","lb":"J11 pin 2 (GND)","w":0.45,"k":null,"via":null,"label":null},{"net":"HALL_RL","a":[64,114,"r"],"b":[83,114,"l"],"la":"Hall RL \u00b7 OUT","lb":"J11 pin 3 (OUT)","w":0.45,"k":null,"via":null,"label":null},{"net":"+3V3","a":[64,119,"r"],"b":[83,119,"l"],"la":"Hall FR \u00b7 VCC","lb":"J12 pin 1 (VCC)","w":0.45,"k":null,"via":null,"label":null},{"net":"GND","a":[64,121,"r"],"b":[83,121,"l"],"la":"Hall FR \u00b7 GND","lb":"J12 pin 2 (GND)","w":0.45,"k":null,"via":null,"label":null},{"net":"HALL_FR","a":[64,123,"r"],"b":[83,123,"l"],"la":"Hall FR \u00b7 OUT","lb":"J12 pin 3 (OUT)","w":0.45,"k":null,"via":null,"label":null},{"net":"+3V3","a":[198,120,"l"],"b":[181,120,"r"],"la":"Hall FL \u00b7 VCC","lb":"J13 pin 1 (VCC)","w":0.45,"k":null,"via":null,"label":null},{"net":"GND","a":[198,122,"l"],"b":[181,122,"r"],"la":"Hall FL \u00b7 GND","lb":"J13 pin 2 (GND)","w":0.45,"k":null,"via":null,"label":null},{"net":"HALL_FL","a":[198,124,"l"],"b":[181,124,"r"],"la":"Hall FL \u00b7 OUT","lb":"J13 pin 3 (OUT)","w":0.45,"k":null,"via":null,"label":null},{"net":"+3V3","a":[198,128,"l"],"b":[181,128,"r"],"la":"Hall RR \u00b7 VCC","lb":"J3 pin 1 (VCC)","w":0.45,"k":null,"via":null,"label":null},{"net":"GND","a":[198,130,"l"],"b":[181,130,"r"],"la":"Hall RR \u00b7 GND","lb":"J3 pin 2 (GND)","w":0.45,"k":null,"via":null,"label":null},{"net":"HALL_RR","a":[198,132,"l"],"b":[181,132,"r"],"la":"Hall RR \u00b7 OUT","lb":"J3 pin 3 (OUT)","w":0.45,"k":null,"via":null,"label":null},{"net":"+3V3","a":[198,88,"l"],"b":[181,88,"r"],"la":"DS18B20 A \u00b7 VCC (red)","lb":"J4 pin 1 (VCC)","w":0.45,"k":null,"via":null,"label":null},{"net":"GND","a":[198,90,"l"],"b":[181,90,"r"],"la":"DS18B20 A \u00b7 GND (black)","lb":"J4 pin 2 (GND)","w":0.45,"k":null,"via":null,"label":null},{"net":"OW_DATA","a":[198,92,"l"],"b":[181,92,"r"],"la":"DS18B20 A \u00b7 DATA (yellow)","lb":"J4 pin 3 (DATA)","w":0.45,"k":null,"via":null,"label":null},{"net":"+3V3","a":[198,96,"l"],"b":[181,96,"r"],"la":"DS18B20 B \u00b7 VCC (red)","lb":"J6 pin 1 (VCC)","w":0.45,"k":null,"via":null,"label":null},{"net":"GND","a":[198,98,"l"],"b":[181,98,"r"],"la":"DS18B20 B \u00b7 GND (black)","lb":"J6 pin 2 (GND)","w":0.45,"k":null,"via":null,"label":null},{"net":"OW_DATA","a":[198,100,"l"],"b":[181,100,"r"],"la":"DS18B20 B \u00b7 DATA (yellow)","lb":"J6 pin 3 (DATA)","w":0.45,"k":null,"via":null,"label":null},{"net":"PI_3V3","a":[254.0,188,"d"],"b":[253,208,"u"],"la":"Ra-02 (car) \u00b7 3.3V","lb":"Pi pin 1 (3V3)","w":0.4,"k":4,"via":null,"label":null},{"net":"PI_GND","a":[259.4,188,"d"],"b":[257,206,"u"],"la":"Ra-02 (car) \u00b7 GND","lb":"Pi pin 6 (GND)","w":0.4,"k":4,"via":null,"label":null},{"net":"PI_GND","a":[264.8,188,"d"],"b":[261,208,"u"],"la":"Ra-02 (car) \u00b7 GND","lb":"Pi pin 9 (GND)","w":0.4,"k":4,"via":null,"label":null},{"net":"RA_RST","a":[270.2,188,"d"],"b":[263,208,"u"],"la":"Ra-02 (car) \u00b7 RESET","lb":"Pi pin 11 (GPIO17)","w":0.4,"k":4,"via":null,"label":null},{"net":"RA_NSS","a":[275.6,188,"d"],"b":[263,206,"u"],"la":"Ra-02 (car) \u00b7 NSS","lb":"Pi pin 12 (GPIO18)","w":0.4,"k":4,"via":null,"label":null},{"net":"RA_DIO0","a":[281.0,188,"d"],"b":[265,208,"u"],"la":"Ra-02 (car) \u00b7 DIO0","lb":"Pi pin 13 (GPIO27)","w":0.4,"k":4,"via":null,"label":null},{"net":"RA_MISO","a":[286.4,188,"d"],"b":[287,208,"u"],"la":"Ra-02 (car) \u00b7 MISO","lb":"Pi pin 35 (GPIO19)","w":0.4,"k":4,"via":null,"label":null},{"net":"RA_MOSI","a":[291.8,188,"d"],"b":[289,206,"u"],"la":"Ra-02 (car) \u00b7 MOSI","lb":"Pi pin 38 (GPIO20)","w":0.4,"k":4,"via":null,"label":null},{"net":"RA_SCK","a":[297.2,188,"d"],"b":[291,206,"u"],"la":"Ra-02 (car) \u00b7 SCK","lb":"Pi pin 40 (GPIO21)","w":0.4,"k":4,"via":null,"label":null},{"net":"PI_5V","a":[258,254,"u"],"b":[258,248,"d"],"la":"Pi supply \u00b7 5 V","lb":"Pi USB-C","w":0.6,"k":1,"via":null,"label":null},{"net":"CANH","a":[184,108,"r"],"b":[315,216,"r"],"la":"CAN out \u00b7 CANH","lb":"Raspberry Pi 4B + 2-CH CAN HAT \u00b7 CAN0 H","w":0.5,"k":null,"via":[[326,108],[326,216]],"label":"CAN cable (twisted pair + GND)"},{"net":"CANL","a":[184,110.5,"r"],"b":[315,219,"r"],"la":"CAN out \u00b7 CANL","lb":"Raspberry Pi 4B + 2-CH CAN HAT \u00b7 CAN0 L","w":0.5,"k":null,"via":[[324.8,110.5],[324.8,219]],"label":null},{"net":"GND","a":[184,113,"r"],"b":[315,222,"r"],"la":"CAN out \u00b7 GND","lb":"Raspberry Pi 4B + 2-CH CAN HAT \u00b7 CAN0 G","w":0.5,"k":null,"via":[[323.6,113],[323.6,222]],"label":null},{"net":"GS_3V3","a":[36,210,"r"],"b":[54,210,"l"],"la":"Ground ESP32 \u00b7 3V3","lb":"Ra-02 (ground) \u00b7 3.3V","w":0.4,"k":3,"via":null,"label":null},{"net":"GS_GND","a":[36,214,"r"],"b":[54,214,"l"],"la":"Ground ESP32 \u00b7 GND","lb":"Ra-02 (ground) \u00b7 GND","w":0.4,"k":3,"via":null,"label":null},{"net":"GS_NSS","a":[36,218,"r"],"b":[54,218,"l"],"la":"Ground ESP32 \u00b7 GPIO5","lb":"Ra-02 (ground) \u00b7 NSS","w":0.4,"k":3,"via":null,"label":null},{"net":"GS_SCK","a":[36,222,"r"],"b":[54,222,"l"],"la":"Ground ESP32 \u00b7 GPIO18","lb":"Ra-02 (ground) \u00b7 SCK","w":0.4,"k":3,"via":null,"label":null},{"net":"GS_MOSI","a":[36,226,"r"],"b":[54,226,"l"],"la":"Ground ESP32 \u00b7 GPIO23","lb":"Ra-02 (ground) \u00b7 MOSI","w":0.4,"k":3,"via":null,"label":null},{"net":"GS_MISO","a":[36,230,"r"],"b":[54,230,"l"],"la":"Ground ESP32 \u00b7 GPIO19","lb":"Ra-02 (ground) \u00b7 MISO","w":0.4,"k":3,"via":null,"label":null},{"net":"GS_RST","a":[36,234,"r"],"b":[54,234,"l"],"la":"Ground ESP32 \u00b7 GPIO14","lb":"Ra-02 (ground) \u00b7 RESET","w":0.4,"k":3,"via":null,"label":null},{"net":"GS_DIO0","a":[36,238,"r"],"b":[54,238,"l"],"la":"Ground ESP32 \u00b7 GPIO26","lb":"Ra-02 (ground) \u00b7 DIO0","w":0.4,"k":3,"via":null,"label":null},{"net":"USB","a":[25,244,"d"],"b":[25,256,"u"],"la":"Ground ESP32 \u00b7 USB","lb":"Laptop 1 \u00b7 USB","w":0.7,"k":2,"via":null,"label":null},{"net":"CAM_5V","a":[98,260,"d"],"b":[98,265,"u"],"la":"ESP32-CAM \u00b7 5V","lb":"5 V supply","w":0.6,"k":1,"via":null,"label":null},{"net":"12V_RAW","a":[122,180,"r"],"b":[128,163.5,"l"],"la":"12 V adapter \u00b7 +","lb":"Fuse 3 A \u00b7 a","w":0.9,"k":null,"via":null,"label":null},{"net":"12V_IN","a":[166,150,"d"],"b":[140,163.5,"r"],"la":"J14 pin 2 (IN+)","lb":"Fuse 3 A \u00b7 b","w":0.9,"k":null,"via":null,"label":"J14 IN+"},{"net":"12V_LOAD","a":[168,150,"d"],"b":[150.5,178,"u"],"la":"J14 pin 3 (IN-)","lb":"12 V splice \u00b7 in","w":0.9,"k":null,"via":null,"label":"J14 IN\u2212"},{"net":"12V_LOAD","a":[157,181.5,"r"],"b":[164,166,"l"],"la":"12 V splice \u00b7 to buck","lb":"Buck converter \u00b7 IN+","w":0.9,"k":null,"via":null,"label":null},{"net":"12V_LOAD","a":[157,186,"r"],"b":[231,164,"u"],"la":"12 V splice \u00b7 to L298N","lb":"L298N \u00b7 12V","w":0.9,"k":null,"via":[[193,186],[193,157],[231,157]],"label":null},{"net":"+5V","a":[172,150,"d"],"b":[170,160,"u"],"la":"J15 pin 1 (+5V)","lb":"Buck converter \u00b7 OUT+","w":0.9,"k":3,"via":null,"label":null},{"net":"GND","a":[174,150,"d"],"b":[174,160,"u"],"la":"J15 pin 2 (GND)","lb":"Buck converter \u00b7 OUT\u2212","w":0.9,"k":3,"via":null,"label":null},{"net":"GND","a":[122,186,"r"],"b":[150,196,"u"],"la":"12 V adapter \u00b7 \u2212","lb":"GND star \u00b7 adapter \u2212","w":0.9,"k":null,"via":null,"label":null},{"net":"GND","a":[164,171,"l"],"b":[159,196,"u"],"la":"Buck converter \u00b7 IN\u2212","lb":"GND star \u00b7 buck IN\u2212","w":0.9,"k":null,"via":[[161.5,171],[161.5,192],[159,192]],"label":null},{"net":"GND","a":[226,164,"u"],"b":[168,196,"u"],"la":"L298N \u00b7 GND","lb":"GND star \u00b7 L298N GND","w":0.9,"k":null,"via":[[226,159.2],[194.6,159.2],[194.6,192.5],[168,192.5]],"label":null},{"net":"MOTOR_PWM","a":[178,150,"d"],"b":[215,164,"u"],"la":"J16 pin 1 (PWM)","lb":"L298N \u00b7 ENA","w":0.45,"k":null,"via":[[178,155.5],[215,155.5]],"label":null},{"net":"MOTOR_PWM","a":[200,155.5,"u"],"b":[200,164,"u"],"la":"splice on the ENA wire","lb":"L298N \u00b7 ENB","w":0.45,"k":2,"via":null,"label":null},{"net":"GND","a":[180,150,"d"],"b":[226,164,"u"],"la":"J16 pin 2 (GND)","lb":"L298N \u00b7 GND","w":0.45,"k":null,"via":[[180,153.6],[226,153.6]],"label":"signal ground"},{"net":"L298_5V","a":[212,164,"u"],"b":[221,164,"u"],"la":"L298N \u00b7 IN1","lb":"L298N \u00b7 5V","w":0.4,"k":2.5,"via":null,"label":null},{"net":"L298_5V","a":[206,164,"u"],"b":[221,164,"u"],"la":"L298N \u00b7 IN3","lb":"L298N \u00b7 5V","w":0.4,"k":4,"via":null,"label":null},{"net":"GND","a":[209,164,"u"],"b":[226,164,"u"],"la":"L298N \u00b7 IN2","lb":"L298N \u00b7 GND","w":0.4,"k":5.5,"via":null,"label":null},{"net":"GND","a":[203,164,"u"],"b":[226,164,"u"],"la":"L298N \u00b7 IN4","lb":"L298N \u00b7 GND","w":0.4,"k":7,"via":null,"label":null},{"net":"MOTOR_A1","a":[196,174,"l"],"b":[180,208,"u"],"la":"L298N \u00b7 OUT1","lb":"Motor RL \u00b7 +","w":0.8,"k":null,"via":null,"label":null},{"net":"MOTOR_A2","a":[196,180,"l"],"b":[188,208,"u"],"la":"L298N \u00b7 OUT2","lb":"Motor RL \u00b7 \u2212","w":0.8,"k":null,"via":null,"label":null},{"net":"MOTOR_B1","a":[238,174,"r"],"b":[241,174,"l"],"la":"L298N \u00b7 OUT3","lb":"Motor RR \u00b7 +","w":0.8,"k":3,"via":null,"label":null},{"net":"MOTOR_B2","a":[238,180,"r"],"b":[241,180,"l"],"la":"L298N \u00b7 OUT4","lb":"Motor RR \u00b7 \u2212","w":0.8,"k":3,"via":null,"label":null}],"members":{"GND":["U1.23 GND","U1.28 GND","U1.33 GND","U1.38 GND","U1.13 GND","U1.8 GND","U1.3 GND","J15.2 GND","J10.1 GND","J9.1 GND","C4.2 2","C5.2 2","U3.5 GND","J11.2 GND","J12.2 GND","R8.2 2","C1.2 2","R7.2 2","C2.2 2","TP3.1 GND","J8.1 GND","J7.1 GND","J5.1 GND","J4.2 GND","J6.2 GND","J1.2 GND","J13.2 GND","J3.2 GND","U2.2 GND","U2.7 AD0","J2.7 GND","R6.2 2","J16.2 GND","RR flap: GND","RL flap: GND","FR flap: GND","FL flap: GND","Steering: GND","Hall RL: GND","Hall FR: GND","Hall FL: GND","Hall RR: GND","DS18B20 A: GND black","DS18B20 B: GND black","CAN out: GND","Raspberry Pi 4B + 2-CH CAN HAT: CAN0 G","12 V adapter: \u2212","Buck converter: OUT\u2212","Buck converter: IN\u2212","GND star: adapter \u2212","GND star: buck IN\u2212","GND star: L298N GND","L298N: IN4","L298N: IN2","L298N: GND"],"ENC_CLK":["U1.26 D22","R13.2 2"],"ENC_DT":["U1.27 D23","R12.2 2"],"HALL_RL":["U1.31 D3","J11.3 OUT","Hall RL: OUT"],"HALL_FR":["U1.32 D2","J12.3 OUT","Hall FR: OUT"],"RR_FB":["U1.34 D1","R2.2 2","R8.1 1","C1.1 1"],"RL_FB":["U1.35 D0","R3.2 2","R7.1 1","C2.1 1"],"+3V3":["U1.36 3V3","U3.4 +","J11.1 VCC","J12.1 VCC","TP1.1 3V3","R5.1 1","J4.1 VCC","J6.1 VCC","R1.1 1","J1.1 3V3","J13.1 VCC","J3.1 VCC","R9.1 1","R10.1 1","U2.1 VCC","J2.8 VCC","Hall RL: VCC","Hall FR: VCC","Hall FL: VCC","Hall RR: VCC","DS18B20 A: VCC red","DS18B20 B: VCC red"],"VSYS":["U1.39 VSYS","J17.2 VSYS"],"PWM_RL":["U1.17 G21","J9.3 PWM","RL flap: PWM"],"PWM_FR":["U1.16 G20","J8.3 PWM","FR flap: PWM"],"PWM_FL":["U1.15 D19","J7.3 PWM","FL flap: PWM"],"PWM_STEER":["U1.14 D18","J5.3 PWM","Steering: PWM"],"OW_DATA":["U1.12 D9","J4.3 DATA","J6.3 DATA","R1.2 2","TP6.1 OW","DS18B20 A: DATA yellow","DS18B20 B: DATA yellow"],"PWM_RR":["U1.11 D8","J10.3 PWM","R5.2 2","RR flap: PWM"],"CAN_RX":["U1.10 D15","J1.4 CRX"],"HALL_FL":["U1.9 D14","J13.3 OUT","Hall FL: OUT"],"SCL":["U1.7 D7","R9.2 2","TP5.1 SCL","U2.3 SCL","J2.6 SCL"],"SDA":["U1.6 D6","R10.2 2","TP4.1 SDA","U2.4 SDA","J2.5 SDA"],"CAN_TX":["U1.5 D5","J1.3 CTX"],"HALL_RR":["U1.4 D4","J3.3 OUT","Hall RR: OUT"],"MOTOR_PWM":["U1.2 RXD","R6.1 1","J16.1 PWM","L298N: ENB","L298N: ENA"],"+5V":["J15.1 +5V","J10.2 +5V","J9.2 +5V","C4.1 1","C5.1 1","J17.1 +5V","TP2.1 5V","J8.2 +5V","J7.2 +5V","J5.2 +5V","RR flap: +5V","RL flap: +5V","FR flap: +5V","FL flap: +5V","Steering: +5V","Buck converter: OUT+"],"FBRAW_RR":["J10.4 FB","R2.1 1","RR flap: FB"],"FBRAW_RL":["J9.4 FB","R3.1 1","RL flap: FB"],"ENC_CLK_RAW":["U3.1 CLK","R13.1 1"],"ENC_DT_RAW":["U3.2 DT","R12.1 1"],"12V_LOAD":["J2.1 IN-","J2.3 VBUS","J14.1 VBUS","J14.3 IN-","12 V splice: in","12 V splice: to buck","12 V splice: to L298N","Buck converter: IN+","L298N: 12V"],"12V_IN":["J2.2 IN+","J14.2 IN+","Fuse 3 A: b"],"CANH":["CAN out: CANH","Raspberry Pi 4B + 2-CH CAN HAT: CAN0 H"],"CANL":["CAN out: CANL","Raspberry Pi 4B + 2-CH CAN HAT: CAN0 L"],"PI_5V":["Raspberry Pi 4B + 2-CH CAN HAT: USB-C","Pi supply: 5V"],"PI_3V3":["Ra-02 (car): 3.3V"],"PI_GND":["Ra-02 (car): GND","Ra-02 (car): GND"],"RA_RST":["Ra-02 (car): RESET"],"RA_NSS":["Ra-02 (car): NSS"],"RA_DIO0":["Ra-02 (car): DIO0"],"RA_MISO":["Ra-02 (car): MISO"],"RA_MOSI":["Ra-02 (car): MOSI"],"RA_SCK":["Ra-02 (car): SCK"],"GS_3V3":["Ground ESP32: 3V3","Ra-02 (ground): 3.3V"],"GS_GND":["Ground ESP32: GND","Ra-02 (ground): GND"],"GS_NSS":["Ground ESP32: GPIO5","Ra-02 (ground): NSS"],"GS_SCK":["Ground ESP32: GPIO18","Ra-02 (ground): SCK"],"GS_MOSI":["Ground ESP32: GPIO23","Ra-02 (ground): MOSI"],"GS_MISO":["Ground ESP32: GPIO19","Ra-02 (ground): MISO"],"GS_RST":["Ground ESP32: GPIO14","Ra-02 (ground): RESET"],"GS_DIO0":["Ground ESP32: GPIO26","Ra-02 (ground): DIO0"],"USB":["Ground ESP32: USB","Laptop 1: USB"],"CAM_5V":["ESP32-CAM: 5V","5 V supply: 5V"],"12V_RAW":["12 V adapter: +","Fuse 3 A: a"],"L298_5V":["L298N: IN3","L298N: IN1","L298N: 5V"],"MOTOR_A1":["L298N: OUT1","Motor RL: +"],"MOTOR_A2":["L298N: OUT2","Motor RL: \u2212"],"MOTOR_B1":["L298N: OUT3","Motor RR: +"],"MOTOR_B2":["L298N: OUT4","Motor RR: \u2212"]},"cls":{"GS_NSS":"spi","GND":"gnd","ENC_CLK":"dig","+5V":"v5","PWM_FL":"pwm","CAM_5V":"v5","MOTOR_B2":"mot","FBRAW_RR":"fb","RA_MISO":"spi","PWM_STEER":"pwm","MOTOR_A2":"mot","SCL":"i2c","PWM_FR":"pwm","MOTOR_B1":"mot","HALL_FL":"dig","RR_FB":"fb","L298_5V":"v5","PWM_RR":"pwm","RA_MOSI":"spi","GS_RST":"spi","RA_SCK":"spi","HALL_RR":"dig","CAN_RX":"can","PI_3V3":"v33","MOTOR_PWM":"pwm","USB":"usb","FBRAW_RL":"fb","SDA":"i2c","GS_SCK":"spi","PI_GND":"gnd","12V_IN":"v12","GS_3V3":"v33","PWM_RL":"pwm","12V_RAW":"v12","HALL_RL":"dig","RA_DIO0":"spi","ENC_CLK_RAW":"dig","HALL_FR":"dig","12V_LOAD":"v12","PI_5V":"v5","GS_MOSI":"spi","RA_RST":"spi","+3V3":"v33","CAN_TX":"can","GS_MISO":"spi","ENC_DT":"dig","GS_DIO0":"spi","GS_GND":"gnd","CANH":"can","CANL":"can","MOTOR_A1":"mot","OW_DATA":"ow","RL_FB":"fb","RA_NSS":"spi","ENC_DT_RAW":"dig","VSYS":"v5"},"desc":{"+5V":"Servo and VCU supply from the buck (J15). Wide trace: 1.5 mm.","+3V3":"3.3 V from the VCU module's regulator (U1 pin 36) to every sensor.","GND":"Ground. On the board it's the bottom-layer copper pour; every GND pad connects to it.","VSYS":"VCU 5 V input, through jumper J17.","12V_IN":"12 V from the fuse into INA260 IN+.","12V_LOAD":"12 V after the INA260 shunt (IN\u2212). Feeds the buck and the L298N. VBUS is tied to it on the board.","12V_RAW":"Adapter + before the fuse.","EN":"VCU reset: R11 pull-up, C3 delay, SW1 to ground.","OW_DATA":"1-Wire bus for both DS18B20s, R1 4.7k pull-up to 3.3 V.","SCL":"I\u00b2C clock: MPU6050 + INA260, R9 4.7k pull-up.","SDA":"I\u00b2C data: MPU6050 + INA260, R10 4.7k pull-up.","PWM_RR":"RR flap servo PWM on GPIO8, a boot strapping pin: R5 10k pull-up keeps it high at reset.","MOTOR_PWM":"L298N ENA+ENB on GPIO17. R6 4.7k pull-down keeps the motors off during reset.","RR_FB":"Divided RR feedback into ADC GPIO1 (R2 top, R8 bottom, C1 filter).","RL_FB":"Divided RL feedback into ADC GPIO0 (R3 top, R7 bottom, C2 filter).","FBRAW_RR":"Raw pot-wiper voltage from the RR MG996R (up to ~5 V) \u2014 only ever reaches the VCU through the divider.","FBRAW_RL":"Raw pot-wiper voltage from the RL MG996R.","ENC_CLK_RAW":"KY-040 CLK before R13.","ENC_DT_RAW":"KY-040 DT before R12.","ENC_CLK":"Encoder CLK into GPIO22 (shared with the on-board expander's SDA: never start I\u00b2C here).","ENC_DT":"Encoder DT into GPIO23.","CANH":"CAN high, twisted with CANL.","CANL":"CAN low.","L298_5V":"Direction straps: IN1 and IN3 tied to the L298N's own 5 V terminal (forward only)."},"bom":[{"ref":"C1","value":"100nF","foot":"Disc ceramic, 5.08 mm pitch","x":39.37,"y":71.75},{"ref":"C2","value":"100nF","foot":"Disc ceramic, 5.08 mm pitch","x":39.37,"y":82.55},{"ref":"C4","value":"1000\u00b5F 10V","foot":"Radial \u00d810 mm, 5.0 mm pitch","x":8.89,"y":11.43},{"ref":"C5","value":"100nF","foot":"Disc ceramic, 5.08 mm pitch","x":6.35,"y":19.05},{"ref":"J1","value":"CAN MODULE","foot":"Pin socket 2.54 mm","x":109.22,"y":52.07},{"ref":"J2","value":"INA260","foot":"Pin socket 2.54 mm","x":115.57,"y":96.52},{"ref":"J3","value":"HALL RR","foot":"Pin socket 2.54 mm","x":128.27,"y":76.2},{"ref":"J4","value":"DS18B20 A","foot":"Pin socket 2.54 mm","x":128.27,"y":25.4},{"ref":"J5","value":"SERVO STEER","foot":"Pin socket 2.54 mm","x":101.6,"y":3.81},{"ref":"J6","value":"DS18B20 B","foot":"Pin socket 2.54 mm","x":128.27,"y":35.56},{"ref":"J7","value":"SERVO FL","foot":"Pin socket 2.54 mm","x":91.44,"y":3.81},{"ref":"J8","value":"SERVO FR","foot":"Pin socket 2.54 mm","x":81.28,"y":3.81},{"ref":"J9","value":"SERVO RL","foot":"Pin socket 2.54 mm","x":27.94,"y":3.81},{"ref":"J10","value":"SERVO RR","foot":"Pin socket 2.54 mm","x":15.24,"y":3.81},{"ref":"J11","value":"HALL RL","foot":"Pin socket 2.54 mm","x":3.81,"y":53.34},{"ref":"J12","value":"HALL FR","foot":"Pin socket 2.54 mm","x":3.81,"y":64.77},{"ref":"J13","value":"HALL FL","foot":"Pin socket 2.54 mm","x":128.27,"y":66.04},{"ref":"J14","value":"12V","foot":"Pin socket 2.54 mm","x":109.22,"y":101.6},{"ref":"J15","value":"+5V IN","foot":"Pin socket 2.54 mm","x":118.11,"y":101.6},{"ref":"J16","value":"MOTOR","foot":"Pin socket 2.54 mm","x":125.73,"y":101.6},{"ref":"J17","value":"VSYS JMP","foot":"Pin socket 2.54 mm","x":41.91,"y":96.52},{"ref":"R1","value":"4.7k","foot":"Axial THT, 7.62 mm pitch","x":119.38,"y":29.21},{"ref":"R2","value":"10k","foot":"Axial THT, 7.62 mm pitch","x":19.05,"y":12.06},{"ref":"R3","value":"10k","foot":"Axial THT, 7.62 mm pitch","x":31.75,"y":12.06},{"ref":"R5","value":"10k","foot":"Axial THT, 7.62 mm pitch","x":39.37,"y":21.59},{"ref":"R6","value":"4.7k","foot":"Axial THT, 7.62 mm pitch","x":73.03,"y":92.71},{"ref":"R7","value":"10k","foot":"Axial THT, 7.62 mm pitch","x":36.83,"y":79.38},{"ref":"R8","value":"10k","foot":"Axial THT, 7.62 mm pitch","x":36.83,"y":74.93},{"ref":"R9","value":"4.7k","foot":"Axial THT, 7.62 mm pitch","x":81.28,"y":72.39},{"ref":"R10","value":"4.7k","foot":"Axial THT, 7.62 mm pitch","x":81.28,"y":76.2},{"ref":"R12","value":"1k","foot":"Axial THT, 7.62 mm pitch","x":33.02,"y":52.07},{"ref":"R13","value":"1k","foot":"Axial THT, 7.62 mm pitch","x":33.02,"y":48.26},{"ref":"TP1","value":"3V3","foot":"Test loop \u00d82 mm","x":30.48,"y":96.52},{"ref":"TP2","value":"5V","foot":"Test loop \u00d82 mm","x":37.47,"y":7.62},{"ref":"TP3","value":"GND","foot":"Test loop \u00d82 mm","x":35.56,"y":96.52},{"ref":"TP4","value":"SDA","foot":"Test loop \u00d82 mm","x":93.98,"y":72.39},{"ref":"TP5","value":"SCL","foot":"Test loop \u00d82 mm","x":90.17,"y":72.39},{"ref":"TP6","value":"OW","foot":"Test loop \u00d82 mm","x":114.3,"y":38.1},{"ref":"U1","value":"ESP32-C6 Pico (SmartElex)","foot":"2\u00d720 socket strips, 17.78 mm row spacing","x":59.69,"y":67.31},{"ref":"U2","value":"MPU6050","foot":"Pin socket 2.54 mm","x":92.71,"y":96.52},{"ref":"U3","value":"KY-040","foot":"Pin socket 2.54 mm","x":3.81,"y":29.21}],"stats":{"w_mm":132.1,"h_mm":104.1,"vias":10,"traces":77,"length_mm":2013,"nets":29},"lora":{"a":[300.0,174],"b":[62,206]},"piheader":{"1":[253,208,"3V3",false],"2":[253,206,"5V",true],"3":[255,208,"GPIO2",false],"4":[255,206,"5V",true],"5":[257,208,"GPIO3",false],"6":[257,206,"GND",false],"7":[259,208,"GPIO4",false],"8":[259,206,"GPIO14",false],"9":[261,208,"GND",false],"10":[261,206,"GPIO15",false],"11":[263,208,"GPIO17",false],"12":[263,206,"GPIO18",false],"13":[265,208,"GPIO27",false],"14":[265,206,"GND",true],"15":[267,208,"GPIO22",false],"16":[267,206,"GPIO23",true],"17":[269,208,"3V3",true],"18":[269,206,"GPIO24",false],"19":[271,208,"GPIO10",true],"20":[271,206,"GND",true],"21":[273,208,"GPIO9",true],"22":[273,206,"GPIO25",true],"23":[275,208,"GPIO11",true],"24":[275,206,"GPIO8",true],"25":[277,208,"GND",false],"26":[277,206,"GPIO7",true],"27":[279,208,"ID_SD",false],"28":[279,206,"ID_SC",false],"29":[281,208,"GPIO5",false],"30":[281,206,"GND",false],"31":[283,208,"GPIO6",false],"32":[283,206,"GPIO12",false],"33":[285,208,"GPIO13",false],"34":[285,206,"GND",false],"35":[287,208,"GPIO19",false],"36":[287,206,"GPIO16",false],"37":[289,208,"GPIO26",false],"38":[289,206,"GPIO20",false],"39":[291,208,"GND",false],"40":[291,206,"GPIO21",false]},"rapins":[1,6,9,11,12,13,35,38,40]};
+(function(){
+const NS="http://www.w3.org/2000/svg";
+const B=DATA.board, BX=DATA.BX, BY=DATA.BY, MM=1/1.27;
+const svg=document.getElementById("cv");
+function el(t,a,txt){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;return e;}
+function g(cls,parent){const e=el("g",cls?{class:cls}:{});(parent||svg).appendChild(e);return e;}
+const CLSNAME={v12:"12 V",v5:"+5 V",v33:"+3.3 V",gnd:"Ground",pwm:"PWM / motor signal",fb:"Servo feedback",dig:"Digital input",ow:"1-Wire",i2c:"I²C",can:"CAN",spi:"SPI (radio)",mot:"Motor output",usb:"USB / supply",ctl:"Reset",nc:"Not connected"};
+const cls=n=>DATA.cls[n]||"nc";
+const col=n=>`var(--${cls(n)})`;
+let netMode=false;
+
+/* ---------- world ---------- */
+const world=g("world");
+world.appendChild(el("rect",{x:-4,y:-4,width:DATA.WW+8,height:DATA.WH+8,fill:"var(--cv)"}));
+// faint grid
+const grid=g("",world);
+for(let x=0;x<=DATA.WW;x+=10) grid.appendChild(el("line",{x1:x,y1:0,x2:x,y2:DATA.WH,stroke:"#141b23","stroke-width":0.15}));
+for(let y=0;y<=DATA.WH;y+=10) grid.appendChild(el("line",{x1:0,y1:y,x2:DATA.WW,y2:y,stroke:"#141b23","stroke-width":0.15}));
+
+/* ---------- harness (below external bodies, above grid) ---------- */
+const harness=g("harness",world);
+const extg=g("extc",world);
+const board=g("",world); board.setAttribute("transform",`translate(${BX},${BY})`);
+const harnessTop=g("harness",world);
+
+/* board substrate + pour */
+board.appendChild(el("rect",{x:0,y:0,width:B.W,height:B.H,rx:1.2,fill:"var(--pcb)",stroke:"var(--edge)","stroke-width":0.25}));
+const pour=g("pour L1",board);
+pour.appendChild(el("rect",{x:0.8,y:0.8,width:B.W-1.6,height:B.H-1.6,rx:0.8,fill:"var(--bcu)",opacity:0.2,"data-net":"GND",class:"pad"}));
+const knock=g("",pour);
+B.traces.filter(t=>t.layer===1&&t.net!=="GND").forEach(t=>knock.appendChild(el("polyline",{points:t.pts.map(p=>p.join(",")).join(" "),fill:"none",stroke:"var(--pcb)","stroke-width":(t.w+0.7)*MM,"stroke-linecap":"round","stroke-linejoin":"round"})));
+B.pads.filter(p=>p.net!=="GND").forEach(p=>knock.appendChild(el("circle",{cx:p.x,cy:p.y,r:(p.d/2+0.45)*MM,fill:"var(--pcb)"})));
+B.vias.filter(v=>v.net!=="GND").forEach(v=>knock.appendChild(el("circle",{cx:v.x,cy:v.y,r:(0.4+0.4)*MM,fill:"var(--pcb)"})));
+B.holes.forEach(h=>knock.appendChild(el("circle",{cx:h[0],cy:h[1],r:2.4*MM*1.6,fill:"var(--pcb)"})));
+
+/* traces */
+const traceEls=[];
+[1,0].forEach(L=>{
+  const lg=g("L"+L,board);
+  B.traces.filter(t=>t.layer===L).forEach(t=>{
+    const e=el("polyline",{points:t.pts.map(p=>p.join(",")).join(" "),fill:"none","stroke-width":t.w*MM,"stroke-linecap":"round","stroke-linejoin":"round",class:"trace","data-net":t.net,"data-layer":L});
+    lg.appendChild(e); traceEls.push(e);
+  });
+});
+function paintTraces(){traceEls.forEach(e=>{const L=+e.dataset.layer;e.setAttribute("stroke",netMode?col(e.dataset.net):(L?"var(--bcu)":"var(--tcu)"));e.setAttribute("opacity",L&&!netMode?0.85:1);});}
+paintTraces();
+
+/* silkscreen */
+const silk=g("silk",board);
+const S={fill:"none",stroke:"var(--silk)","stroke-width":0.12};
+B.parts.forEach(p=>{
+  const k=p.kind;
+  if(k==="header"){
+    silk.appendChild(el("rect",Object.assign({x:p.x1,y:p.y1,width:p.x2-p.x1,height:p.y2-p.y1,rx:0.2},S)));
+    if(p.body) silk.appendChild(el("rect",Object.assign({x:p.body[0],y:p.body[1],width:p.body[2]-p.body[0],height:p.body[3]-p.body[1],rx:0.5,"stroke-dasharray":"0.8 0.5",opacity:0.75},S)));
+    const lab=p.label||p.ref, horiz=(p.x2-p.x1)>(p.y2-p.y1);
+    let tx,ty,anc="start",rot=0;
+    if(p.body){ tx=p.body[0]+1; ty=p.body[1]+1.9; }
+    else if(horiz){ tx=p.x1; ty=p.y1>77?p.y1-0.35:(p.side==="s"?p.y2+1.6:p.y2+2.5); }
+    else { tx=p.x1; ty=p.y1-0.5; if(p.x1>60){ tx=p.x2; anc="end"; } }
+    silk.appendChild(el("text",{x:tx,y:ty,"font-size":1.25,fill:"var(--silk)","text-anchor":anc,"font-weight":600},lab));
+  } else if(k==="R"){
+    const dx=p.x2-p.x1, dy=p.y2-p.y1, L=Math.hypot(dx,dy), a=Math.atan2(dy,dx)*180/Math.PI, cx=(p.x1+p.x2)/2, cy=(p.y1+p.y2)/2;
+    const gg=el("g",{transform:`translate(${cx},${cy}) rotate(${a})`});
+    gg.appendChild(el("rect",Object.assign({x:-L/2+1.3,y:-0.9,width:L-2.6,height:1.8,rx:0.6},S)));
+    gg.appendChild(el("line",Object.assign({x1:-L/2+0.9,y1:0,x2:-L/2+1.3,y2:0},S)));
+    gg.appendChild(el("line",Object.assign({x1:L/2-1.3,y1:0,x2:L/2-0.9,y2:0},S)));
+    silk.appendChild(gg);
+    const vert=Math.abs(dy)>Math.abs(dx), above=p.ref==="R11"||p.ref==="R9"||p.ref==="R10";
+    const lx=vert?cx+1.3:(above?cx:Math.min(p.x1,p.x2)-1.1), ly=vert?cy+0.4:(above?cy-1.25:cy+0.38);
+    silk.appendChild(el("text",{x:lx,y:ly,"font-size":1.0,fill:"var(--silk)","text-anchor":vert?"start":(above?"middle":"end")},`${p.ref} ${p.value}`));
+  } else if(k==="C"){
+    const cx=(p.x1+p.x2)/2, cy=(p.y1+p.y2)/2, vert=Math.abs(p.y2-p.y1)>Math.abs(p.x2-p.x1);
+    silk.appendChild(el("rect",Object.assign({x:cx-(vert?0.8:1.7),y:cy-(vert?1.7:0.8),width:vert?1.6:3.4,height:vert?3.4:1.6,rx:0.8},S)));
+    const left=p.ref==="C1"||p.ref==="C2";
+    silk.appendChild(el("text",{x:vert?cx+1.3:(left?Math.min(p.x1,p.x2)-1.1:cx),y:vert?cy+0.4:(left?cy+0.38:cy+2.3),"font-size":1.0,fill:"var(--silk)","text-anchor":vert?"start":(left?"end":"middle")},`${p.ref} ${p.value}`));
+  } else if(k==="CE"){
+    const cx=(p.x1+p.x2)/2, cy=(p.y1+p.y2)/2;
+    silk.appendChild(el("circle",Object.assign({cx,cy,r:5*MM},S)));
+    silk.appendChild(el("text",{x:p.x1-0.2,y:p.y1-1.1,"font-size":1.3,fill:"var(--silk)","text-anchor":"middle","font-weight":700},"+"));
+    silk.appendChild(el("text",{x:cx,y:cy-1.4,"font-size":1.0,fill:"var(--silk)","text-anchor":"middle"},p.ref));
+    silk.appendChild(el("text",{x:cx,y:cy+2.2,"font-size":0.85,fill:"var(--silk)","text-anchor":"middle"},p.value));
+  } else if(k==="sw"){
+    silk.appendChild(el("rect",Object.assign({x:p.x1-0.4,y:p.y1-0.4,width:p.x2-p.x1+0.8,height:p.y2-p.y1+0.8,rx:0.3},S)));
+    silk.appendChild(el("circle",Object.assign({cx:(p.x1+p.x2)/2,cy:(p.y1+p.y2)/2,r:1.3},S)));
+    silk.appendChild(el("text",{x:(p.x1+p.x2)/2,y:p.y1-1.1,"font-size":1.05,fill:"var(--silk)","text-anchor":"middle"},"SW1 RESET"));
+  } else if(k==="tp"){
+    silk.appendChild(el("text",{x:p.x1,y:p.y1-1.5,"font-size":0.95,fill:"var(--silk)","text-anchor":"middle"},p.value));
+  } else if(k==="module"){
+    silk.appendChild(el("rect",Object.assign({x:p.x1,y:p.y1,width:p.x2-p.x1,height:p.y2-p.y1,rx:0.8},S,{"stroke-width":0.18})));
+    const cx=(p.x1+p.x2)/2;
+    silk.appendChild(el("rect",Object.assign({x:cx-3,y:p.y2-2.2,width:6,height:2.6,rx:0.4},S)));
+    silk.appendChild(el("text",{x:cx,y:p.y2-2.8,"font-size":0.95,fill:"var(--silk)","text-anchor":"middle"},"USB"));
+    silk.appendChild(el("text",{x:cx,y:(p.y1+p.y2)/2-1,"font-size":1.6,fill:"var(--silk)","text-anchor":"middle","font-weight":700},"U1"));
+    silk.appendChild(el("text",{x:cx,y:(p.y1+p.y2)/2+1.1,"font-size":1.0,fill:"var(--silk)","text-anchor":"middle"},"ESP32-C6 Pico"));
+    silk.appendChild(el("text",{x:cx,y:(p.y1+p.y2)/2+2.6,"font-size":0.9,fill:"var(--silk)","text-anchor":"middle",opacity:0.7},"socketed"));
+  }
+});
+B.holes.forEach(h=>{silk.appendChild(el("circle",{cx:h[0],cy:h[1],r:1.6*MM*1.6,fill:"none",stroke:"var(--silk)","stroke-width":0.12}));});
+const holes=g("",board);
+B.holes.forEach(h=>holes.appendChild(el("circle",{cx:h[0],cy:h[1],r:1.6*MM,fill:"var(--drill)",stroke:"#555","stroke-width":0.1})));
+
+/* vias */
+const vg=g("",board);
+B.vias.forEach(v=>{const c=el("g",{"data-net":v.net,class:"pad"});c.appendChild(el("circle",{cx:v.x,cy:v.y,r:0.4*MM,fill:"#c9ced3"}));c.appendChild(el("circle",{cx:v.x,cy:v.y,r:0.2*MM,fill:"var(--drill)"}));vg.appendChild(c);});
+
+/* pads */
+const pg=g("",board);
+const pn=g("pname",board);
+B.pads.forEach(p=>{
+  const r=p.d/2*MM, nc=p.net==="NC";
+  const c=el("g",{"data-net":p.net,class:"pad"});
+  const fill=nc?"#6b737b":"var(--padc)";
+  if(p.shape==="rect") c.appendChild(el("rect",{x:p.x-r,y:p.y-r,width:2*r,height:2*r,rx:0.1,fill}));
+  else c.appendChild(el("circle",{cx:p.x,cy:p.y,r,fill}));
+  c.appendChild(el("circle",{cx:p.x,cy:p.y,r:(p.shape==="tp"?0.5:0.4)*MM,fill:"var(--drill)"}));
+  if(p.net==="GND"){ // thermal marks
+    [[1,0],[0,1]].forEach(([a,b])=>c.appendChild(el("line",{x1:p.x-a*r*1.35,y1:p.y-b*r*1.35,x2:p.x+a*r*1.35,y2:p.y+b*r*1.35,stroke:"var(--bcu)","stroke-width":0.2,opacity:0.8})));
+  }
+  const tt=el("title",{},`${p.ref} pin ${p.pin} · ${p.name} · ${p.net}`); c.appendChild(tt);
+  pg.appendChild(c);
+});
+// pin names
+const partOf={}; B.parts.forEach(p=>partOf[p.ref]=p);
+B.pads.forEach(p=>{
+  const part=partOf[p.ref]; if(!part) return;
+  if(part.kind==="module"){
+    const left=p.x<47;
+    pn.appendChild(el("text",{x:left?p.x+1.35:p.x-1.35,y:p.y+0.35,"font-size":0.95,fill:"var(--silk)","text-anchor":left?"start":"end","font-family":"IBM Plex Mono, monospace"},`${p.name}`));
+    pn.appendChild(el("text",{x:left?p.x-1.3:p.x+1.3,y:p.y+0.3,"font-size":0.7,fill:"#8fa0b0","text-anchor":left?"end":"start","font-family":"IBM Plex Mono, monospace"},p.pin));
+    return;
+  }
+  if(part.kind!=="header") return;
+  const horiz=(part.x2-part.x1)>(part.y2-part.y1);
+  if(horiz){
+    if(part.y1>77) return;                       // J14/J15/J16 on the board edge: names are in the label
+    const below=part.side!=="s";
+    pn.appendChild(el("text",{x:p.x,y:below?p.y+1.6:p.y-1.15,"font-size":0.6,fill:"var(--silk)","text-anchor":"middle","font-family":"IBM Plex Mono, monospace"},p.name));
+  } else {
+    const inward = part.body ? true : p.x<50;
+    const tx = inward===(p.x<50||!!part.body) && (p.x<50||part.body) ? p.x+1.25 : p.x-1.25;
+    const anc = tx>p.x ? "start" : "end";
+    pn.appendChild(el("text",{x:tx,y:p.y+0.3,"font-size":0.8,fill:"var(--silk)","text-anchor":anc,"font-family":"IBM Plex Mono, monospace"},p.name));
+  }
+});
+
+/* ---------- external components ---------- */
+function T(parent,x,y,txt,sz,opt){parent.appendChild(el("text",Object.assign({x,y,"font-size":sz,fill:"var(--exttext)"},opt||{}),txt));}
+DATA.ext.forEach(c=>{
+  const gg=el("g",{});
+  const k=c.kind;
+  const body={x:c.x,y:c.y,width:c.w,height:c.h,rx:0.8,fill:"var(--ext)",stroke:"var(--extline)","stroke-width":0.25};
+  if(k==="servo"){ gg.appendChild(el("rect",body)); gg.appendChild(el("circle",{cx:c.x+c.w/2,cy:c.y+5,r:Math.min(3,c.w/2-0.8),fill:"none",stroke:"var(--extline)","stroke-width":0.3}));
+    T(gg,c.x+c.w/2,c.y+11.5,c.title.split(" ")[0],1.7,{"text-anchor":"middle","font-weight":700});
+    T(gg,c.x+c.w/2,c.y+13.8,c.title.split(" ").slice(1).join(" "),1.2,{"text-anchor":"middle",fill:"var(--extmuted)"});
+    c.sub.split(" / ").forEach((s,i)=>T(gg,c.x+c.w/2,c.y+16.4+i*1.6,s,1.15,{"text-anchor":"middle",fill:"var(--extmuted)"}));
+  } else if(k==="probe"){
+    gg.appendChild(el("rect",{x:c.x+6,y:c.y+0.3,width:8,height:c.h-0.6,rx:0.6,fill:"#2a2f36",stroke:"var(--extline)","stroke-width":0.2}));
+    gg.appendChild(el("rect",{x:c.x+14,y:c.y+0.9,width:c.w-14,height:c.h-1.8,rx:1.4,fill:"#8d99a6"}));
+    T(gg,c.x+c.w+1,c.y+c.h/2-0.2,c.title,1.5,{"font-weight":700});
+    T(gg,c.x+c.w+1,c.y+c.h/2+1.6,c.sub,1.1,{fill:"var(--extmuted)"});
+  } else if(k==="pi"){
+    gg.appendChild(el("rect",Object.assign({},body,{fill:"#123324"})));
+    gg.appendChild(el("rect",{x:c.x+1,y:c.y-1.2,width:c.w-2,height:c.h+0.6,rx:0.8,fill:"none",stroke:"#6ea8ff","stroke-width":0.25,"stroke-dasharray":"1 0.6"}));
+    T(gg,c.x+4,c.y+11,c.title,1.9,{"font-weight":700});
+    T(gg,c.x+4,c.y+13.4,c.sub,1.2,{fill:"var(--extmuted)"});
+    T(gg,c.x+4,c.y+16,"dashed outline = CAN HAT (stacked on top)",1.1,{fill:"#6ea8ff"});
+    // header
+    Object.entries(DATA.piheader).forEach(([n,[x,y,name,hat]])=>{
+      const used=DATA.rapins.includes(+n);
+      gg.appendChild(el("rect",{x:x-0.55,y:y-0.55,width:1.1,height:1.1,fill:used?"var(--padc)":hat?"#6ea8ff":"#4a5560"}));
+    });
+    T(gg,c.x+5,c.y+6.8,"pin 1",0.9,{fill:"var(--extmuted)"});
+    T(gg,c.x+c.w-2,c.y+10.6,"CAN0",1.1,{"text-anchor":"end",fill:"var(--extmuted)"});
+    T(gg,c.x+c.w-2,c.y+22.6,"CAN1",1.1,{"text-anchor":"end",fill:"var(--extmuted)"});
+  } else if(k==="l298n"){
+    gg.appendChild(el("rect",Object.assign({},body,{fill:"#3a1616"})));
+    gg.appendChild(el("rect",{x:c.x+c.w/2-5,y:c.y+c.h-9,width:10,height:7,rx:0.4,fill:"#15181c"}));
+    T(gg,c.x+2,c.y+c.h-5,c.title,1.9,{"font-weight":700});
+    T(gg,c.x+2,c.y+c.h-2.8,c.sub,1.05,{fill:"var(--extmuted)"});
+    T(gg,c.x+2,c.y+8,"ENA/ENB jumpers OFF",1.1,{fill:"#ffb4a8"});
+  } else if(k==="term"){
+    gg.appendChild(el("rect",Object.assign({},body,{fill:"#1d3a5a"})));
+    T(gg,c.x+c.w/2,c.y+c.h+1.8,c.title,1.3,{"text-anchor":"middle","font-weight":700});
+    if(c.sub) T(gg,c.x+c.w/2,c.y+c.h+3.4,c.sub,1.0,{"text-anchor":"middle",fill:"var(--extmuted)"});
+  } else if(k==="fuse"){
+    gg.appendChild(el("rect",Object.assign({},body,{rx:2.2,fill:"#26303a"})));
+    T(gg,c.x+c.w/2,c.y-1,c.title,1.3,{"text-anchor":"middle","font-weight":700});
+  } else if(k==="motor"){
+    gg.appendChild(el("rect",Object.assign({},body,{rx:3,fill:"#2b3139"})));
+    T(gg,c.x+c.w/2,c.y+c.h/2+0.4,c.title.replace("Motor ",""),1.4,{"text-anchor":"middle","font-weight":700});
+    T(gg,c.x+c.w/2,c.y+c.h+1.8,c.sub,1.0,{"text-anchor":"middle",fill:"var(--extmuted)"});
+  } else if(k==="ra"){
+    gg.appendChild(el("rect",Object.assign({},body,{fill:"#1b2733"})));
+    gg.appendChild(el("path",{d:`M${c.x+c.w-2} ${c.y} v-4 m-1.2 0 h2.4`,stroke:"var(--extline)","stroke-width":0.35,fill:"none"}));
+    T(gg,c.x+2,c.y+3,c.title,1.6,{"font-weight":700});
+    T(gg,c.x+2,c.y+5,c.sub,1.05,{fill:"var(--extmuted)"});
+  } else if(k==="hall"){
+    gg.appendChild(el("rect",body));
+  } else {
+    gg.appendChild(el("rect",body));
+    const inside=c.h>=9;
+    if(inside){ T(gg,c.x+1.2,c.y+2.6,c.title,1.5,{"font-weight":700}); T(gg,c.x+1.2,c.y+4.4,c.sub,1.0,{fill:"var(--extmuted)"}); }
+    else { T(gg,c.x+1.2,c.y+c.h/2+0.2,c.title,1.4,{"font-weight":700}); T(gg,c.x+c.w+1,c.y+c.h/2+0.2,c.sub,1.0,{fill:"var(--extmuted)"}); }
+  }
+  if(k==="hall"){ T(gg,c.pins[0].dir==="r"?c.x+1:c.x+c.w-1,c.y+c.h/2-0.2,c.title,1.3,{"font-weight":700,"text-anchor":c.pins[0].dir==="r"?"start":"end"});
+    T(gg,c.pins[0].dir==="r"?c.x+1:c.x+c.w-1,c.y+c.h/2+1.4,c.sub,0.95,{fill:"var(--extmuted)","text-anchor":c.pins[0].dir==="r"?"start":"end"}); }
+  // pins
+  c.pins.forEach(p=>{
+    if(p.net==="RF") return;
+    const pc=el("g",{"data-net":p.net,class:"xpin"});
+    pc.appendChild(el("circle",{cx:p.x,cy:p.y,r:0.55,fill:p.net==="NC"?"#4a5560":col(p.net),stroke:"#0a0e13","stroke-width":0.15}));
+    const off=1.1; let tx=p.x,ty=p.y,anc="middle",rot=null;
+    if(p.dir==="d"){ ty=p.y-off; rot=-90; anc="start"; }
+    else if(p.dir==="u"){ ty=p.y+off; rot=-90; anc="end"; }
+    else if(p.dir==="l"){ tx=p.x+off; anc="start"; ty=p.y+0.35; }
+    else { tx=p.x-off; anc="end"; ty=p.y+0.35; }
+    if(k==="pi"&&p.dir==="d") { ty=p.y-off; }
+    const t=el("text",{x:tx,y:ty,"font-size":0.85,fill:"var(--exttext)","text-anchor":anc,"font-family":"IBM Plex Mono, monospace"},p.name.trim());
+    if(rot!==null){ t.setAttribute("transform",`rotate(${rot} ${tx} ${ty})`); t.setAttribute("dy","0.3"); }
+    if(!(k==="servo")) pc.appendChild(t);
+    pc.appendChild(el("title",{},`${c.title} · ${p.name.trim()} · ${p.net}`));
+    gg.appendChild(pc);
+  });
+  if(k==="servo"){ // wire colour key under servo
+    c.pins.forEach((p,i)=>{const t=el("text",{x:p.x,y:p.y-1.0,"font-size":0.8,fill:"var(--exttext)","text-anchor":"start",transform:`rotate(-90 ${p.x} ${p.y-1.0})`,dy:"0.28","font-family":"IBM Plex Mono, monospace"},p.name); gg.appendChild(t);});
+  }
+  if(c.note) gg.appendChild(el("title",{},c.title+": "+c.note));
+  extg.appendChild(gg);
+});
+
+/* ---------- harness wires ---------- */
+const DV={u:[0,-1],d:[0,1],l:[-1,0],r:[1,0]};
+function pathFor(w){
+  const [ax,ay,ad]=w.a,[bx,by,bd]=w.b;
+  if(w.via&&w.via.length){
+    const pts=[[ax,ay],...w.via,[bx,by]]; let d=`M${ax} ${ay}`; const R=1.2;
+    for(let i=1;i<pts.length-1;i++){
+      const [x0,y0]=pts[i-1],[x1,y1]=pts[i],[x2,y2]=pts[i+1];
+      const l1=Math.hypot(x1-x0,y1-y0), l2=Math.hypot(x2-x1,y2-y1), r=Math.min(R,l1/2,l2/2);
+      const p1=[x1-(x1-x0)/l1*r,y1-(y1-y0)/l1*r], p2=[x1+(x2-x1)/l2*r,y1+(y2-y1)/l2*r];
+      d+=` L${p1[0]} ${p1[1]} Q${x1} ${y1} ${p2[0]} ${p2[1]}`;
+    }
+    d+=` L${bx} ${by}`; return d;
+  }
+  const dist=Math.hypot(bx-ax,by-ay); const k=w.k!=null?w.k:Math.max(3,Math.min(26,dist*0.42));
+  const A=DV[ad]||[0,0],Bv=DV[bd]||[0,0];
+  return `M${ax} ${ay} C${ax+A[0]*k} ${ay+A[1]*k} ${bx+Bv[0]*k} ${by+Bv[1]*k} ${bx} ${by}`;
+}
+DATA.wires.forEach((w,i)=>{
+  const onBoard = w.b && w.b[0]>=BX && w.b[0]<=BX+B.W && w.b[1]>=BY && w.b[1]<=BY+B.H;
+  const layer = harness;
+  const sw=Math.max(0.35,w.w);
+  const p=el("path",{d:pathFor(w),fill:"none",stroke:col(w.net),"stroke-width":sw,"stroke-linecap":"round","data-net":w.net,class:"wire",style:`--sw:${sw}`});
+  p.appendChild(el("title",{},`${w.net}: ${w.la} → ${w.lb}`));
+  layer.appendChild(p);
+  if(w.label){
+    const mid=w.via&&w.via.length?w.via[0]:[(w.a[0]+w.b[0])/2,(w.a[1]+w.b[1])/2];
+    layer.appendChild(el("text",{x:mid[0]+0.8,y:mid[1]-0.8,"font-size":1.05,fill:"var(--extmuted)","font-family":"IBM Plex Mono, monospace","data-net":w.net},w.label));
+  }
+});
+// wire ends on board pads: small solder dots above board
+DATA.wires.forEach(w=>{[w.a,w.b].forEach(pt=>{ if(pt[0]>=BX&&pt[0]<=BX+B.W&&pt[1]>=BY&&pt[1]<=BY+B.H){ harnessTop.appendChild(el("circle",{cx:pt[0],cy:pt[1],r:0.32,fill:col(w.net),"data-net":w.net,class:"wire"})); } });});
+// LoRa link
+const L=DATA.lora;
+const lp=el("path",{d:`M62 240 V277 Q62 279 64 279 H327 Q329 279 329 277 V172 Q329 170 327 170 H${L.a[0]+1}`,fill:"none",stroke:"#9a9cff","stroke-width":0.45,"stroke-dasharray":"2 1.4",opacity:0.8});
+harness.appendChild(lp);
+harness.appendChild(el("text",{x:150,y:277.6,"font-size":1.5,fill:"#9a9cff","font-family":"IBM Plex Mono, monospace"},"LoRa 433 MHz radio link (no wire) · SF7 · BW 250 kHz · antennas on both Ra-02s"));
+// region labels
+[["OFF-BOARD: SERVOS",BX,22],["OFF-BOARD: POWER + MOTOR DRIVER",100,158],["GATEWAY",PXLAB(),170],["GROUND STATION",8,200]].forEach(([t,x,y])=>world.insertBefore(el("text",{x,y,"font-size":1.5,fill:"#5d6b78","font-family":"IBM Plex Mono, monospace","letter-spacing":"0.2"},t),harness));
+function PXLAB(){ const pi=DATA.ext.find(e=>e.id==="RA_CAR"); return pi.x; }
+world.insertBefore(el("text",{x:BX,y:BY-1.4,"font-size":1.5,fill:"var(--edge)","font-family":"IBM Plex Mono, monospace"},`VCU PCB · ${DATA.stats.w_mm} × ${DATA.stats.h_mm} mm · 2 layers`),harness);
+
+/* ---------- layer toggles ---------- */
+const layersEl=document.getElementById("layers");
+const LAYERS=[["top","Top copper","var(--tcu)"],["bot","Bottom copper","var(--bcu)"],["pour","GND pour","var(--bcu)"],["silk","Silkscreen","var(--silk)"],["names","Pin names","var(--padc)"],["harness","Off-board wires","var(--v5)"],["ext","Off-board parts","var(--extline)"]];
+LAYERS.forEach(([k,n,c])=>{const b=document.createElement("button");b.type="button";b.className="tg";b.setAttribute("aria-pressed","true");b.innerHTML=`<i style="--c:${c}"></i>${n}`;
+  b.onclick=()=>{const on=b.getAttribute("aria-pressed")!=="true";b.setAttribute("aria-pressed",String(on));svg.classList.toggle("hide-"+k,!on);};layersEl.appendChild(b);});
+document.getElementById("modeLayer").onclick=()=>{netMode=false;document.getElementById("modeLayer").setAttribute("aria-pressed","true");document.getElementById("modeNet").setAttribute("aria-pressed","false");paintTraces();};
+document.getElementById("modeNet").onclick=()=>{netMode=true;document.getElementById("modeLayer").setAttribute("aria-pressed","false");document.getElementById("modeNet").setAttribute("aria-pressed","true");paintTraces();};
+
+/* ---------- facts ---------- */
+const st=DATA.stats;
+document.getElementById("facts").innerHTML=[["Board",`${st.w_mm} × ${st.h_mm} mm`],["Layers","2 (1 oz)"],["Vias",st.vias],["Copper length",`${(st.length_mm/1000).toFixed(2)} m`],["Parts on board",DATA.bom.length],["Off-board wires",DATA.wires.length]].map(([a,b])=>`<span class="fact">${a} <b>${b}</b></span>`).join("");
+const rules=[["Signal traces","0.4 mm"],["+3.3 V / VSYS","0.6 mm"],["+5 V servo rail","1.5 mm"],["12 V (J2 ↔ J14)","1.8 mm, as short as possible"],["Clearance","≥ 0.3 mm to other copper, ≥ 0.45 mm pour clearance"],["Vias","0.8 mm pad / 0.4 mm drill"],["Pads","Ø1.8 mm, 1.0 mm drill (headers); Ø1.6 mm (resistors, caps)"],["Ground","bottom-layer pour, every GND pad through-hole"],["Mounting","M3 holes where the corners are free"]];
+document.getElementById("rules").innerHTML=rules.map(([a,b])=>`<li><b>${a}:</b> <span>${b}</span></li>`).join("");
+
+/* ---------- info panel + selection ---------- */
+const info=document.getElementById("info");
+const netsel=document.getElementById("netsel");
+const allNets=Object.keys(DATA.members).sort();
+allNets.forEach(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;netsel.appendChild(o);});
+const WIDTH={"+5V":"1.5 mm","12V_IN":"1.8 mm","12V_LOAD":"1.8 mm","+3V3":"0.6 mm","VSYS":"0.6 mm","GND":"pour"};
+function showInfo(n){
+  if(!n){ info.innerHTML=`<h3>Pick a net</h3><p class="muted">Hover over or tap any pad, trace or wire, or choose from the Net menu. Everything on that net lights up, on the board and off it.</p>
+  <p class="muted"><b>Top copper</b> is red and <b>bottom copper</b> blue. Gold circles are through-hole pads (square = pin 1). Grey dashed boxes are plug-in modules.</p>
+  <p class="kbd">Esc clears the selection</p>`; return; }
+  const c=cls(n); const m=(DATA.members[n]||[]);
+  const board=m.filter(x=>/^[A-Z]+\d*\.\d+/.test(x)), off=m.filter(x=>!/^[A-Z]+\d*\.\d+/.test(x));
+  info.innerHTML=`<div class="nn">${n}</div><div><span class="chip" style="--c:var(--${c})"><i></i>${CLSNAME[c]}</span>${WIDTH[n]?` <span class="chip">${WIDTH[n]}</span>`:""}</div>
+  ${DATA.desc[n]?`<p class="muted">${DATA.desc[n]}</p>`:""}
+  ${board.length?`<div><b style="font-size:13px">On the board (${board.length})</b><ul>${board.map(x=>`<li>${x}</li>`).join("")}</ul></div>`:""}
+  ${off.length?`<div><b style="font-size:13px">Off the board (${off.length})</b><ul>${off.map(x=>`<li>${x}</li>`).join("")}</ul></div>`:""}
+  <p class="kbd">Esc or tap empty space to clear</p>`;
+}
+let locked=null;
+const all=()=>svg.querySelectorAll("[data-net]");
+function highlight(n){
+  if(!n){ svg.classList.remove("focus"); all().forEach(e=>e.classList.remove("hl")); showInfo(null); return; }
+  svg.classList.add("focus"); all().forEach(e=>e.classList.toggle("hl",e.dataset.net===n)); showInfo(n);
+}
+svg.addEventListener("pointerover",e=>{ if(locked||dragging) return; const t=e.target.closest("[data-net]"); highlight(t?t.dataset.net:null); });
+let downAt=null;
+svg.addEventListener("click",e=>{
+  if(moved) return;
+  const t=e.target.closest("[data-net]");
+  if(t){ locked=t.dataset.net; netsel.value=locked; highlight(locked); }
+  else { locked=null; netsel.value=""; highlight(null); }
+});
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ locked=null; netsel.value=""; highlight(null);} });
+netsel.onchange=()=>{ locked=netsel.value||null; highlight(locked); if(locked) fitNet(locked); };
+showInfo(null);
+
+/* ---------- pan / zoom ---------- */
+let vb={x:0,y:0,w:DATA.WW,h:DATA.WH};
+function apply(){ svg.setAttribute("viewBox",`${vb.x} ${vb.y} ${vb.w} ${vb.h}`); }
+function aspect(){ const b=svg.getBoundingClientRect(); return (b.width>0&&b.height>0)?b.width/b.height:1.4; }
+function fit(x,y,w,h,pad){ const r=aspect(); pad=pad||4; x-=pad;y-=pad;w+=2*pad;h+=2*pad; if(w/h>r){const nh=w/r;y-=(nh-h)/2;h=nh;}else{const nw=h*r;x-=(nw-w)/2;w=nw;} vb={x,y,w,h}; apply(); }
+const fitAll=()=>fit(0,0,DATA.WW,DATA.WH,2), fitBoard=()=>fit(BX,BY,B.W,B.H,3);
+function fitNet(n){ const els=[...svg.querySelectorAll(`[data-net="${CSS.escape(n)}"]`)]; if(!els.length) return;
+  let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9; els.forEach(e=>{ try{ const b=e.getBBox(); const inBoard=e.closest("g[transform]"); const ox=inBoard?BX:0, oy=inBoard?BY:0; x1=Math.min(x1,b.x+ox); y1=Math.min(y1,b.y+oy); x2=Math.max(x2,b.x+b.width+ox); y2=Math.max(y2,b.y+b.height+oy);}catch(_){} });
+  if(x2>x1) fit(x1,y1,Math.max(x2-x1,20),Math.max(y2-y1,14),6); }
+function zoomAt(f,cx,cy){ const nw=Math.min(DATA.WW*2.5,Math.max(8,vb.w*f)), s=nw/vb.w; vb.x=cx-(cx-vb.x)*s; vb.y=cy-(cy-vb.y)*s; vb.w=nw; vb.h*=s; apply(); }
+function toWorld(ev){ const r=svg.getBoundingClientRect(); return [vb.x+(ev.clientX-r.left)/r.width*vb.w, vb.y+(ev.clientY-r.top)/r.height*vb.h]; }
+svg.addEventListener("wheel",e=>{ e.preventDefault(); const [x,y]=toWorld(e); zoomAt(Math.exp(e.deltaY*0.0015),x,y); },{passive:false});
+const ptrs=new Map(); let dragging=false, moved=false, last=null, pinch=null;
+svg.addEventListener("pointerdown",e=>{ ptrs.set(e.pointerId,e); svg.setPointerCapture(e.pointerId); moved=false; if(ptrs.size===1){ dragging=true; last=[e.clientX,e.clientY]; svg.classList.add("drag"); } else if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; pinch={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)}; } });
+svg.addEventListener("pointermove",e=>{ if(!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId,e);
+  if(ptrs.size===2&&pinch){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY); const m={clientX:(a.clientX+b.clientX)/2,clientY:(a.clientY+b.clientY)/2}; const [x,y]=toWorld(m); zoomAt(pinch.d/d,x,y); pinch.d=d; moved=true; return; }
+  if(dragging&&last){ const r=svg.getBoundingClientRect(); const dx=(e.clientX-last[0])/r.width*vb.w, dy=(e.clientY-last[1])/r.height*vb.h; if(Math.abs(e.clientX-last[0])+Math.abs(e.clientY-last[1])>2) moved=true; vb.x-=dx; vb.y-=dy; last=[e.clientX,e.clientY]; apply(); } });
+function endPtr(e){ ptrs.delete(e.pointerId); if(ptrs.size<2) pinch=null; if(ptrs.size===0){ dragging=false; svg.classList.remove("drag"); setTimeout(()=>moved=false,0); } }
+svg.addEventListener("pointerup",endPtr); svg.addEventListener("pointercancel",endPtr);
+document.getElementById("zin").onclick=()=>zoomAt(0.7,vb.x+vb.w/2,vb.y+vb.h/2);
+document.getElementById("zout").onclick=()=>zoomAt(1.4,vb.x+vb.w/2,vb.y+vb.h/2);
+document.getElementById("fitAll").onclick=fitAll; document.getElementById("fitBoard").onclick=fitBoard;
+requestAnimationFrame(fitAll);
+window.addEventListener("resize",()=>{ const r=aspect(); vb.h=vb.w/r; apply(); });
+
+/* ---------- tables ---------- */
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const NOTES={"12V_IN":"1.5 mm² wire; fuse at the adapter end","12V_LOAD":"1.5 mm² wire","+5V":"≥ 0.75 mm² to the buck","MOTOR_A1":"0.75 mm²","MOTOR_A2":"0.75 mm²","MOTOR_B1":"0.75 mm²","MOTOR_B2":"0.75 mm²","CANH":"twist with CANL","CANL":"twist with CANH","PI_3V3":"never 5 V","GS_3V3":"never 5 V","FBRAW_RR":"the wire soldered to the pot wiper","FBRAW_RL":"the wire soldered to the pot wiper","L298_5V":"jumper wire on the L298N","MOTOR_PWM":"remove ENA/ENB jumpers"};
+document.querySelector("#wtab tbody").innerHTML=DATA.wires.map(w=>`<tr data-net="${esc(w.net)}"><td class="m"><span class="dot" style="--c:${col(w.net)}"></span>${esc(w.net)}</td><td>${esc(w.la)}</td><td>${esc(w.lb)}</td><td class="m">${esc(NOTES[w.net]||"")}</td></tr>`).join("");
+const boardNets=[...new Set(B.pads.map(p=>p.net))].filter(n=>n!=="NC").sort();
+document.querySelector("#ntab tbody").innerHTML=boardNets.map(n=>{const m=(DATA.members[n]||[]).filter(x=>/^[A-Z]+\d*\.\d+/.test(x)); return `<tr data-net="${esc(n)}"><td class="m"><span class="dot" style="--c:${col(n)}"></span>${esc(n)}</td><td class="n">${WIDTH[n]||"0.4 mm"}</td><td class="m">${m.map(esc).join(" · ")}</td></tr>`;}).join("");
+document.querySelector("#btab tbody").innerHTML=DATA.bom.map(b=>`<tr><td class="m">${esc(b.ref)}</td><td>${esc(b.value)}</td><td>${esc(b.foot)}</td><td class="n">${b.x.toFixed(2)}</td><td class="n">${b.y.toFixed(2)}</td></tr>`).join("");
+document.querySelectorAll("tr[data-net]").forEach(tr=>tr.addEventListener("click",()=>{ locked=tr.dataset.net; netsel.value=locked; highlight(locked); fitNet(locked); document.getElementById("cwrap").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"}); }));
+})();
+</script>

@@ -1,0 +1,5 @@
+**/__pycache__/
+**/.build/
+SOFTWARE/dashboard/node_modules/
+SOFTWARE/dashboard/.next/
+*.db

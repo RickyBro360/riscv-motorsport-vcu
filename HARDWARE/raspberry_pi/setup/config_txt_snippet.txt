@@ -1,0 +1,9 @@
+# Add under the [all] section of /boot/firmware/config.txt (NOT under [pi5]).
+# Values below are the Waveshare 2-CH CAN HAT defaults: 16 MHz crystal,
+# INT on GPIO23 / GPIO25. READ THE CRYSTAL on your HAT and change
+# oscillator= if it says 8.000 or 12.000. Your HAT's wiki is authoritative.
+dtparam=spi=on
+dtoverlay=mcp2515-can1,oscillator=16000000,interrupt=25
+dtoverlay=mcp2515-can0,oscillator=16000000,interrupt=23
+# Ra-02 (SX1278) on SPI1: CE0 = GPIO18 -> /dev/spidev1.0
+dtoverlay=spi1-1cs

@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+title: "AI-Enabled RISC-V Based Motorsport Electronics Platform with Active Aerodynamics, Telemetry, and Digital Twin for a 1:10 Scale Formula-Style RC Car"
+type: software
+authors:
+  - family-names: Bharadwaj
+    given-names: Parikshit Srivats
+  - family-names: Poojary
+    given-names: Dhyan Raju
+  - family-names: Datta
+    given-names: Gauranga
+  - family-names: Shetty
+    given-names: Dhanushya
+version: "1.0.0"
+date-released: "2026-11-18"
+repository-code: "https://github.com/Rickybro201/riscv-motorsport-vcu"
+license: MIT
+keywords:
+  - RISC-V
+  - ESP32-C6
+  - vehicle control unit
+  - CAN bus
+  - LoRa telemetry
+  - active aerodynamics
+  - digital twin
+  - motorsport

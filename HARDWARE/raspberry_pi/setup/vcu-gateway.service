@@ -1,0 +1,25 @@
+# /etc/systemd/system/vcu-gateway.service  — optional: start the gateway at boot
+# Edit the three EDIT lines, then:
+#   sudo cp vcu-gateway.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now vcu-gateway
+#   journalctl -u vcu-gateway -f
+[Unit]
+Description=VCU telemetry gateway (CAN <-> laptop backend / LoRa)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+# EDIT: path to the raspberry_pi folder (quote-free path, no spaces is easiest)
+WorkingDirectory=/home/pi/MP/HARDWARE/raspberry_pi
+ExecStartPre=/home/pi/MP/HARDWARE/raspberry_pi/setup/can_up.sh --quiet
+# EDIT: laptop IP and the CAN channel can_up.sh reported
+# MODE B (LoRa). For MODE A use: main.py --laptop 10.49.218.128 --can-channel can0 --aero-mode baseline
+ExecStart=/usr/bin/python3 main.py --ground-link lora --lora-backend sx1278 --can-channel can0 --aero-mode baseline
+Restart=always
+RestartSec=3
+# root is needed for `ip link` in ExecStartPre and for GPIO/SPI
+User=root
+
+[Install]
+WantedBy=multi-user.target
